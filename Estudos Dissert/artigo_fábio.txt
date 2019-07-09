@@ -1,0 +1,58 @@
+Artigo: Projection-Based Model Reduction: formulations for physics-based machine
+    learning
+
+ANOTAÇÕES 
+
+---------------- INTRODUÇÃO --------------------
+
+> Um desafio observado pelas modelagens realizadas por aprendizagem de máquina
+    é falta de garantia de que os modelos reflitam as restrições físicas do
+    problema, como as leis de conservação.
+
+> Outro desafio é a disponibilidade de dados para treinamento que geralmente são
+esparsos (pois são díficeis ou caros de se obter)  
+
+> Falta de confiança na capacidade preditiva do modelo, já que existem poucos 
+    dados e o modelo é utilizado frequentemente na previsão de problemas que 
+    não estão disponíveis
+
+> "Big Data needs Big Theory too..."
+
+> o campo da Redução de modelo abrange uma ampla extensão de métods que procuram
+    representações de baixa dimensionalidade eficientes de um modelo de alta 
+    fidelidade. 
+
+> A maioria dos métodos de redução almejaram o caso aonde o modelo de alta 
+    fidelidade é um sistema de equações diferenciais ordinárias ou um sistema de
+    equações derivados da discretização do sistema de equações que retem a
+    física essencial do sistema.
+
+> Grande classe são modelos de redução baseados em projeção: deriva-se a 
+    aproximação de baixa dimensionalidade do sistema pela projeção do modelo 
+    original em um subespaço de baixa dimensão. 
+
+> Pode-se combinar a estrutura de projeção com maneiras de representar a 
+    dependência paramétrica.
+
+>! Verificar Refer. 2 - 8 
+
+> POD != PCA ?
+
+> redução de ordem intimamente ligado com aprendizagem de máquina
+
+> Métodos de redução de ordem, consideram os dados instantaneos, com 
+    diferentes dados de entrada para os modelos de alta fidelidade, como se 
+    fosse um conjunto de pontos da relação input-output (do modelo de alta 
+    fidelidade).
+
+    > Eles então projetam os dados em um espaço de baixa dimensionalidade, 
+        e usam os dados projetados para construir o modelo de ordem reduzida
+    
+
+
+
+
+
+
+
+----------------- CONCLUSÃO ---------------------
