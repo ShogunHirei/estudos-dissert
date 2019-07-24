@@ -30,7 +30,8 @@ t = 2 * x**2 + 0.25 * y**3 + 0.25 * np.random.random(100)
 # plt.show()
 
 # Extrair dados dos timesteps nas simulações de cavity-flow
-CAVITY_FOLDER = r'/home/lucashqr/OpenFOAM/lucashqr-6/run/Cavity_Neural_Networks/'
+CAVITY_FOLDER_REMOTE = r'../Cavity_Neural_Networks/'
+CAVITY_FOLDER_LOCAL = r'/home/lucashqr/OpenFOAM/lucashqr-6/run/Cavity_Neural_Networks/'
 
 AMOSTRAS = os.listdir(CAVITY_FOLDER)
 
