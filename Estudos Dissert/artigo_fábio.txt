@@ -40,14 +40,43 @@ esparsos (pois são díficeis ou caros de se obter)
 
 > redução de ordem intimamente ligado com aprendizagem de máquina
 
-> Métodos de redução de ordem, consideram os dados instantaneos, com 
-    diferentes dados de entrada para os modelos de alta fidelidade, como se 
-    fosse um conjunto de pontos da relação input-output (do modelo de alta 
-    fidelidade).
+> O conjunto de "instantaneos" são gerados a partir do modelo de alta fidelidade
+    , esses instantaneos são então passados por uma técnica de redução de ordem,
+     como a POD para gerar o subespaço de baixa dimensionalidade.
 
-    > Eles então projetam os dados em um espaço de baixa dimensionalidade, 
-        e usam os dados projetados para construir o modelo de ordem reduzida
-    
+
+> Os métodos de redução (de ordem) de modelo usam os dados projetados como 
+    conjunto de treinamento para construir o modelo de ordem reduzida 
+    *que vai mapear os dados de entrada com a representação do modelo de alta 
+        fidelidade para a sua representação de baixa dimensionalidade.* 
+
+> O mapeamento pode ser feito por interpolação ou através de machine-learning
+
+> o subespaço de dimensionalidade reduzida pode ser calculado através da POD, ou
+    também por outras técnicas de *construção de bases*, como o método de base
+    reduzida.
+
+> exemplo: POD -> Cubic-Spline 
+
+> Redução de modelo por dados procura aprender os operadores dos modelos 
+    reduzidos. Assim as técnicas de redução de ordem através de dados permitem 
+    o aprendizado da dinâmica do sistema, respeitando a estrutura (um pouco)
+
+> Compartilham similaridades com técnicas de identificação de sistemas
+
+> Loewner Framework, aprendizado de modelos reduzidos através de funções de 
+    transferência (pode ser estendido para o domínio temporal)
+
+
+> Vector fitting
+
+> Métodos de Redução de modelos ditados por dados baseado na decomposição 
+    em modo dinâmico aprendem operadores reduzidos lineares que melhor 
+    adequam-se aos dados na norm L2 (*ver referências 39-41*)
+
+------- SEÇÃO 2 : Uma parametrização fisicamente inspirada para campos físicos
+
+
 
 
 
