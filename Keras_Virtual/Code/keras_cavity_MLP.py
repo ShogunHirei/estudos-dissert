@@ -27,13 +27,10 @@ search_pattern = "\([-]?(\d*.\d*?)?(e-)?\d* [-]?(\d*.\d*)?(e-)?\d* [-]?(\d*.\d*)
 NU = {}
 TIME = {}
 
-N = 0 # para fazer apenas os dois primeiros casos
+N = 0  # para fazer apenas os dois primeiros casos
 
 # Iterando em cada um dos exemplos de cavidade
 for sample in os.scandir(CAVITY_FOLDER_REMOTE):
-    if N == 2:
-        break
-    N += 1
     # Definindo a pasta que contem o dado de transporte
     TRANSPORT_FILE_PATH = sample.path + r'/constant/transportProperties'
     TIME_FILE_PATH = max([
@@ -62,14 +59,14 @@ for sample in os.scandir(CAVITY_FOLDER_REMOTE):
             # maneira cartesiana (Ux, Uy)
             if re.match(search_pattern, line):
                 if U_POSIX % 20 == 0:
-                    U_POSIY += 1
+                    U_POSIY += 0.1/20
                     U_POSIX = 0
                 U_value = (U_POSIX, U_POSIY, line.split(' ')[0].strip('('),
                            line.split(' ')[1],
                            line.split(' ')[2][:-1].strip(')'))
                 U_value = tuple([float(num) for num in U_value])
                 U_VALUES.append(U_value)
-                U_POSIX += 1
+                U_POSIX += 0.1/20
         TIME[sample.name + '_' + TIME_FILE_PATH] = U_VALUES
 
 # Foram gerados dois dicionários com os dados de velocidade e Nu (Reynolds)
@@ -81,11 +78,11 @@ DATA_ARRAY = []
 for t in TIME.keys():
     nu, T = t.split('_')[0], t.split('_')[1]
     for U in TIME[t]:
-        DATA_ARRAY.append([NU[nu], U[0], U[1], U[2], U[3]])
+        DATA_ARRAY.append([U[0], U[1], U[2], U[3]])
 
 DATA_ARRAY = np.array(DATA_ARRAY)
 print(DATA_ARRAY.shape)
-# print(DATA_ARRAY[:35])
+print(DATA_ARRAY[:35])
 
 # ETAPA DE PRÉ-PROCESSAMENTO: NORMALIZAÇÃO DOS INPUTS
 # normalização utilizada média em R, [-1,1]
@@ -121,12 +118,12 @@ for linha, dado in enumerate(DATA_ARRAY):
 NEW_ARRAY = NEW_ARRAY.reshape(DATA_ARRAY.shape)
 print(NEW_ARRAY.shape)
 
-X = NEW_ARRAY[..., :3]
-Y = NEW_ARRAY[..., 3:]
+X = NEW_ARRAY[..., :2]
+Y = NEW_ARRAY[..., 2:]
 
 # X = X.reshape(-1, 20, 20, 3)
 
-X_train, X_test, Y_train, Y_test = train_test_split(X, Y, test_size=0.05)
+X_train, X_test, Y_train, Y_test = train_test_split(X, Y, test_size=0.25)
 
 # print(X_train.shape, '\n\n', X_train[:3],'\n\n', Y_train[:3])
 
@@ -152,19 +149,13 @@ NN = [512, 256, 128, 64, 32]
 
 MODEL = Sequential()
 
-MODEL.add(Dense(NN[2], activation='tanh', input_shape=(None, 3)))
+MODEL.add(Dense(NN[2], activation='tanh', input_shape=(None, 2)))
 # MODEL.add(Dropout(0.35))
 MODEL.add(Dense(NN[1], activation='tanh'))
 # MODEL.add(Dropout(0.35))
 MODEL.add(Dense(NN[1], activation='tanh'))
 # MODEL.add(Dropout(0.35))
 MODEL.add(Dense(NN[0], activation='tanh'))
-# MODEL.add(Dropout(0.35))
-MODEL.add(Dense(NN[1], activation='tanh'))
-# MODEL.add(Dropout(0.35))
-MODEL.add(Dense(NN[2], activation='tanh'))
-# MODEL.add(Dropout(0.35))
-MODEL.add(Dense(NN[3], activation='tanh'))
 # MODEL.add(Dropout(0.35))
 MODEL.add(Dense(2, activation='tanh'))
 

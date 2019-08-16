@@ -1,0 +1,15 @@
+ORGANIZAÇÃO ATÉ O MOMENTO:
+
+Pastas: 
+--> Models: Modelos gerados pelo Keras
+--> Redução de Ordem Algs
+--> Generated Files
+
+Arquivos:
+--> keras_cavity_MLP.py modelo implementado 
+        de inserção de dados de entrada 
+        diretamente na rede MLP
+
+--> File_generator.py script que gera as saída
+
+

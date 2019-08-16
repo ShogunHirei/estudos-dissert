@@ -17,8 +17,8 @@ from keras.models import load_model
 # -> Escrever dados no formato (ux uy 0)
 
 ######## CUIDADO COM OS VALORES PARA A RENORMALIZAÇÃO ############
-R = [0.02500000000000032, 9.5, 9.5, 0.8515943956457772, 0.4965164834260455]
-xMED = [0.03499999999999968, 9.5, 10.5, 0.0008716043542227244, 0.0001354834260454543]
+R = [0.07165454545454514, 0.9974999999999956, 2.0816681711721685e-17, 0.8515943956457772, 0.4965164834260455]
+xMED = [0.028345454545454868, 0.9974999999999956, 0.004999999999999979, 0.0008716043542227244, 0.0001354834260454543]
 
 # Pegar nome do arquivo de modelo de rede neural a partir da linha de comando
 FILENAME = sys.argv[1]
@@ -33,11 +33,17 @@ INPUT = []
 norm = lambda x, i: (x - xMED[i])/(R[i])
 re_norm = lambda x, i: x*R[i] + xMED[i]
 NU = norm(NU, 0)
-
+XY_input = []
+x, y = 0, 0
 for i in range(20):
+    y += 0.1/20
     for j in range(20):
-        INPUT.append([NU, norm(i, 1), norm(j, 2)])
+        x += 0.1/20
+        XY_input.append([x, y])
+        INPUT.append([norm(XY_input[j][0], 1), norm(XY_input[j][1], 2)])
+    x = 0
 
+[print(XY_input[p]) for p in range(25)]
 INPUT = np.array(INPUT).reshape(-1, 400, 3)
 
 PREDICTIONS = MODEL.predict(INPUT)
