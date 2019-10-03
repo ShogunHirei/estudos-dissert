@@ -9,11 +9,11 @@ from keras.models import load_model
 
 
 # ETAPAS;
-# -> Carregar modelo 
+# -> Carregar modelo
 # -> Usar como dados de entrada NU e (x, y)
 # -> Recuperar dados da rede
 # -> Reescalar dados para as variáveis normais
-# -> Abrir arquivo para escrita 
+# -> Abrir arquivo para escrita
 # -> Escrever dados no formato (ux uy 0)
 
 ######## CUIDADO COM OS VALORES PARA A RENORMALIZAÇÃO ############
@@ -60,5 +60,3 @@ with open('./Generated Files/cavity_MLP_U', 'w') as results:
         results.write(f'({linha[0]:.6f} {linha[1]:.6f} 0)\n')
 
 print('Finished!')
-
-

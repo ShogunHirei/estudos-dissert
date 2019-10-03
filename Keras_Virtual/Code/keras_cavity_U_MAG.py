@@ -1,25 +1,28 @@
-import modred as mr
+"""
+    Rede Neural para prever a magnitude da velocidade para um
+    valor de X fixo.
+"""
 import numpy as np
 from pandas import read_csv
-from keras.layers import Dense, Input, concatenate
-from keras.models import Model, Sequential
+from keras.layers import Dense
+from keras.models import Sequential
 from keras.callbacks import TensorBoard, EarlyStopping
-from sklearn.preprocessing import StandardScaler, Normalizer
+from sklearn.preprocessing import StandardScaler
 from sklearn.model_selection import train_test_split
 from matplotlib import pyplot as plt
 
-df = read_csv(r'./Redução de Ordem Algs/DATA_FOLDER/cavity_U_0.1.csv')
+DF = read_csv(r'./Redução de Ordem Algs/DATA_FOLDER/cavity_U_0.1.csv')
 
-Y = df['Y']
-NU = df['NU']
+Y = DF['Y']
+NU = DF['NU']
 
 # Fixando X em 0.05, e usando Y e Nu como input da rede para prever
 # a Magnitude da velocidade
 
 # Magnitude de U
-U_mag = df[['Ux', 'Uy']].apply(lambda x: (x[0]**2 + x[1]**2)**0.5, axis=1)
+u_MAG = DF[['Ux', 'Uy']].apply(lambda x: (x[0]**2 + x[1]**2)**0.5, axis=1)
 
-U_MAG = np.array(U_mag).reshape(11, 20, 20)
+U_MAG = np.array(u_MAG).reshape(11, 20, 20)
 U_MAG_FIXED_X = U_MAG[:, :, 10]
 
 # Para obter dados de Y para inserir no modelo de rede
@@ -47,11 +50,13 @@ NU_SCALED = NU_scaler.transform(NU_DATA)
 ####  USANDO OS DADOS TRANSPOSTOS DE Y PARA QUE O SCALER PADRONIZE OS DADOS
 Y_SCALED = Y_scaler.transform(Y_DATA.T)
 
-## CRIAR AGRUPAMENTO DE DADOS PARA DIVISÃO POSTERIOR DE GRUPOS DE TREINAMENTO E VALIDAÇÃO
-DATA = np.array([list(zip(NU_SCALED[p], Y_SCALED.T[p], U_SCALED[p])) for p in range(len(NU_DATA))])
-# Transpor novamente os dados de Y para recuperar a disposição dos dados originais
+## CRIAR AGRUPAMENTO DE DADOS PARA DIVISÃO DE GRUPOS DE TREINAMENTO E VALIDAÇÃO
+DATA = np.array([list(zip(NU_SCALED[p], Y_SCALED.T[p], U_SCALED[p]))
+                 for p in range(len(NU_DATA))])
+# Transpor novamente Y para recuperar a disposição dos dados originais
 # Separando em grupos de treinamento e validação
-X_train, X_test, Y_train, Y_test = train_test_split(DATA[...,:2], DATA[...,2], test_size=0.2)
+X_train, X_test, Y_train, Y_test = train_test_split(DATA[..., :2],
+                                                    DATA[..., 2], test_size=0.2)
 
 Y_train = Y_train[np.newaxis].reshape(Y_train.shape[0], 20, 1)
 Y_test = Y_test[np.newaxis].reshape(Y_test.shape[0], 20, 1)
@@ -95,11 +100,11 @@ PREDICTIONS = PREDICTIONS.reshape(1, U_MAG_FIXED_X.shape[1])
 PREDICTIONS = U_scaler.inverse_transform(PREDICTIONS[0])
 
 # Plotando os dados para comparação gráfica dos resultados
-y1 = U_MAG_FIXED_X[10]
-y2 = PREDICTIONS
+Y1 = U_MAG_FIXED_X[10]
+Y2 = PREDICTIONS
 
-plt.plot(Y_DATA[3], y1)
-plt.plot(Y_DATA[3], y2, 'r*')
+plt.plot(Y_DATA[3], Y1)
+plt.plot(Y_DATA[3], Y2, 'r*')
 plt.show()
 
 
