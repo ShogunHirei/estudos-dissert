@@ -3,8 +3,8 @@ Estudos em progresso do uso de redes neurais para predição de perfis de
 escoamento. 
 
 ## Branches 
-## 1. master 
-###1.1 *Lid-Driven Cavity Flow*
+## 1. cavity 
+### 1.1 *Lid-Driven Cavity Flow*
 Uso de *AutoEncoder* para prever o perfil de velocidade.
 * Arquivos:
 
