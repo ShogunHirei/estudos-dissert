@@ -9,6 +9,7 @@ Description: Script utilizado para definir um macro no ParaView
 import os
 import sys
 from paraview.simple import OpenFOAMReader, GetActiveView, Slice, Show, SaveData
+from paraview.simple import PointDatatoCellData, UpdatePipeline, PassArrays
 from paraview import servermanager
 
 # Definin arquivo para Leitura
@@ -34,9 +35,24 @@ SL.SliceType = 'Plane'
 SL.SliceType.Normal = [0, 1, 0]
 SL.SliceType.Origin = [0, -0.2, 0]
 
+Show()
+
+# Passing PointDatatoCellData Filter
+PDCD = PointDatatoCellData()
+PDCD.Input = SL
+PDCD.PassPointData = True
+
+Show()
+print(PDCD.PointData.NumberOfArrays)
+
+# Passando para filtro para Eliminar tensor de Reynolds
+PA = PassArrays(PDCD)
+PA.PointDataArrays = ['U', 'p']
+
+print(PA.PointData.NumberOfArrays)
+
 # Extração de dados para persistência
 FOAM_RUN = os.getenv('FOAM_RUN')
 PATH = FOAM_RUN + '/../Ciclone/ANN_DATA/'
 FILENAME = 'SLICE_DATA_U_'+VEL + '_.csv'
-SaveData(PATH+FILENAME, proxy=SL)
-
+SaveData(PATH+FILENAME, Precision=5, proxy=PA, FieldAssociation='Points')
