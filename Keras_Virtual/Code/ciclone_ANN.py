@@ -7,7 +7,6 @@ Description: Uso de redes neurais para predizer componentes de velocidade em
 
 import re
 import os
-import numpy as np
 from datetime import datetime
 from joblib import dump
 from pandas import read_csv
@@ -15,7 +14,8 @@ from keras.models import Model
 from keras.layers import Dense, Input, concatenate
 from keras.callbacks import EarlyStopping, ReduceLROnPlateau, TensorBoard
 from sklearn.model_selection import train_test_split
-from sklearn.preprocessing import StandardScaler, Normalizer, MinMaxScaler
+from sklearn.preprocessing import StandardScaler  # , Normalizer, MinMaxScaler
+import numpy as np
 
 # Preparar input da rede neural
 # Usando dados em caminho relativo
@@ -43,6 +43,9 @@ INPUT_U = np.array([np.array(sample) for sample in INPUT_U])
 # Convertendo shape das velocidades para ficarem de acordo input de posição
 INPUT_U = INPUT_U.reshape(XZ.shape[0], XZ.shape[1], 1)
 
+# Liberando espaço na memória
+del DF;
+
 # ETAPA DE PADRONIZAÇÃO DE DADOS
 # Dados de posição são repetidos
 XZ_scaler = StandardScaler().fit(XZ[0])
@@ -55,7 +58,7 @@ Uz_scaler = StandardScaler().fit(U_xyz[..., 2])
 # salvar em partes externas
 SC_DIR = './Models/Multi_Input/Scaler/'
 dump(XZ_scaler, SC_DIR+'points_scaler.joblib')
-dump(INPUT_U_scaler, SC_DIR+'points_scaler.joblib')
+dump(INPUT_U_scaler, SC_DIR+'U_input_scaler.joblib')
 dump(Ux_scaler, SC_DIR+'Ux_scaler.joblib')
 dump(Uy_scaler, SC_DIR+'Uy_scaler.joblib')
 dump(Uz_scaler, SC_DIR+'Uz_scaler.joblib')
@@ -103,9 +106,8 @@ Conc1 = concatenate([XZ_out, U_out])
 
 # Criando Camadas escondidas
 x = Dense(256, activation='sigmoid')(Conc1)
-x = Dense(64, activation=None)(x)
+x = Dense(128, activation=None)(x)
 x = Dense(256, activation='sigmoid')(x)
-x = Dense(512, activation=None)(x)
 
 # Output layer (obrigatoriamente depois)
 Output_layer = Dense(3, activation=None, name='Uxyz_Output')(x)

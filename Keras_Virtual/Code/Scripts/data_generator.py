@@ -29,7 +29,7 @@ XZ = read_csv(os.scandir('../../Ciclone/ANN_DATA').__next__().path)[['Points:0',
 # Carregando parametros de padronização para input e interpretação dos dados
 SC_DIR = '../Models/Multi_Input/Scaler/'
 XZ_scaler = load(SC_DIR+'points_scaler.joblib')
-InputU_scaler = load(SC_DIR+'points_scaler.joblib')
+InputU_scaler = load(SC_DIR+'U_input_scaler.joblib')
 Ux_scaler = load(SC_DIR+'Ux_scaler.joblib')
 Uy_scaler = load(SC_DIR+'Uy_scaler.joblib')
 Uz_scaler = load(SC_DIR+'Uz_scaler.joblib')
@@ -46,7 +46,7 @@ PREDIC = model.predict({'XZ_input': XZ, 'U_entr': VEL_ARR})
 
 # Retornando os dados para a escala anterior
 Ux = DataFrame(Ux_scaler.inverse_transform(PREDIC[..., 0]).reshape(-1), columns=['U:0'])
-Uy = DataFrame(Uy_scaler.inverse_transform(PREDIC[..., 1]).reshape(-1),  columns=['U:1'])
+Uy = DataFrame(Uy_scaler.inverse_transform(PREDIC[..., 1]).reshape(-1), columns=['U:1'])
 Uz = DataFrame(Uz_scaler.inverse_transform(PREDIC[..., 2]).reshape(-1), columns=['U:2'])
 
 # Inserindo valor dos pontos de Y
