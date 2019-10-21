@@ -4,26 +4,41 @@ Author: ShogunHirei
 Description: Funções utilizadas repetidamente durante a implementação.
 """
 
+# Função utilizada em ciclone_ANN para obter a estrutura da rede no output
+import re
 
-def write_output_vector(data,  NAME_PATTERN=['Amostra', ''], location='./'):
+
+def rec_function(dic, logfile):
     """
-        File: auxiliar_functions.py
-        Function Name: write_output_vector
-        Summary: Gerar arquivos com dados
-        Description: Grava dados a partir de dados gerados localmente.
-                        data -> dados que serão gravados, a amostra )
-                        NAME_PATTERN -> os nomes dos arquivos gerados, 
-                        Location -> Local para a gravação.
+    Author: ShogunHirei
+    Description: Função para iterar recursivamente por dicionário de
+                 configuração de rede (model.get_config()) e obter as
+                 características principais da topologia
     """
-    # Número de dados (amostras)
-    N = data.shape[0]
-    for amostra in data:
-        FILENAME += NAME_PATTERN[1]
-        with open(FILENAME) as datafile:
-            datafile.write()
+    if type(dic) == dict:
+        for p in dic.keys():
+            if type(dic[p]) == str:
+                string = ''
+                if len(re.findall('name', p)) >= 1:
+                    if 'units' in dic.keys():
+                        string += str(p) + ' ' + str(dic[p])
+                        string += ' ' + str(dic['units'])
+                        logfile.write(string+'\n')
+            elif type(dic[p]) == dict:
+                rec_function(dic[p], logfile)
+            elif type(dic[p]) == list:
+                for y in range(len(dic[p])):
+                    rec_function(dic[p][y], logfile)
+    elif type(dic) == list:
+        for p in range(len(dic)):
+            rec_function(dic[p], logfile)
 
 
+# Classe para escrever dados de maneira organizada
 class Writer:
+    '''
+    Classe para escrever dados de maneira organizada
+    '''
     import os
 
     def __init__(self, DATA_ARRAY, Case, Props, Dir):
@@ -63,5 +78,5 @@ class Writer:
             for dataline in self.data[ind]:
                 datafile.write(str(tuple(dataline)))
         # Inserir local e indices do array
-    
+
 
