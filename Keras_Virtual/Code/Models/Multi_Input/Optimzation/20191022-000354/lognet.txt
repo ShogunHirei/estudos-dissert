@@ -1,0 +1,7 @@
+name dense_1 256
+name dense_2 256
+name dense_3 256
+name dense_4 512
+name dense_5 128
+name dense_6 256
+name Uxyz_Output 3
