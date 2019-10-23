@@ -12,9 +12,11 @@ from joblib import dump
 from pandas import read_csv
 from keras.models import Model
 from keras.layers import Dense, Input, concatenate
+from keras.regularizers import l2
+from keras.initializers import Orthogonal
 from keras.callbacks import EarlyStopping, ReduceLROnPlateau, TensorBoard
 from sklearn.model_selection import train_test_split
-from sklearn.preprocessing import StandardScaler  # , Normalizer, MinMaxScaler
+from sklearn.preprocessing import MinMaxScaler  # StandardScaler, Normalizer, MinMaxScaler
 from Scripts.auxiliar_functions import rec_function
 import numpy as np
 
@@ -54,11 +56,11 @@ del DF
 
 # ETAPA DE PADRONIZAÇÃO DE DADOS
 # Dados de posição são repetidos
-XZ_scaler = StandardScaler().fit(XZ[0])
-INPUT_U_scaler = StandardScaler().fit(INPUT_U[:, 0])
-Ux_scaler = StandardScaler().fit(U_xyz[..., 0])
-Uy_scaler = StandardScaler().fit(U_xyz[..., 1])
-Uz_scaler = StandardScaler().fit(U_xyz[..., 2])
+XZ_scaler = MinMaxScaler().fit(XZ[0])
+INPUT_U_scaler = MinMaxScaler().fit(INPUT_U[:, 0])
+Ux_scaler = MinMaxScaler().fit(U_xyz[..., 0])
+Uy_scaler = MinMaxScaler().fit(U_xyz[..., 1])
+Uz_scaler = MinMaxScaler().fit(U_xyz[..., 2])
 
 # Para reutilizar os parametros dos padronizadores
 # salvar em partes externas
@@ -89,7 +91,7 @@ scaled_U_XZ = np.concatenate((scaled_XZ, scaled_inputU), axis=2)
 
 # PREPARANDO CONJUNTOS PARA TREINAMENTO E TESTE
 X_TRAIN, X_TEST, Y_TRAIN, Y_TEST = train_test_split(
-    scaled_U_XZ, scaled_Uxyz, test_size=0.15)
+    scaled_U_XZ, scaled_Uxyz, test_size=0.20)
 
 # CRIANDO MODEL DE REDE NEURAL (Multi-Input)
 
@@ -99,30 +101,43 @@ X_TRAIN, X_TEST, Y_TRAIN, Y_TEST = train_test_split(
 XZ_input = Input(
     shape=(scaled_U_XZ.shape[1], XZ.shape[-1]), dtype='float32', name='XZ_input')
 # Criando camada completamente conectada
-XZ_out = Dense(256, activation=None)(XZ_input)
+XZ_out = Dense(512, activation='tanh')(XZ_input)
 
 # Camada de Input de Velocidade de entrada
 U_entr = Input(
     shape=(scaled_U_XZ.shape[1], INPUT_U.shape[-1]), dtype='float32', name='U_entr')
 # Criando camada completamente conectada
-U_out = Dense(256, activation=None)(U_entr)
+U_out = Dense(512, activation='tanh')(U_entr)
 
 # Concatenando as camadas de U_entr e XZ_input
 Conc1 = concatenate([XZ_out, U_out])
 
 # Criando Camadas escondidas
-x = Dense(200, activation='tanh')(Conc1)
-x = Dense(150, activation='tanh')(x)
-x = Dense(200, activation='tanh')(x)
+x = Dense(256, activation='tanh', kernel_regularizer=l2(0.02),
+          kernel_initializer=Orthogonal(gain=0.56))(Conc1)
+x = Dense(128, activation='sigmoid', kernel_regularizer=l2(0.02),
+          kernel_initializer=Orthogonal(gain=0.76))(x)
+x = Dense(128, activation=None, kernel_regularizer=l2(0.02),
+          kernel_initializer=Orthogonal(gain=0.8))(x)
+x = Dense(128, activation='sigmoid', kernel_regularizer=l2(0.02),
+          kernel_initializer=Orthogonal(gain=0.8))(x)
+x = Dense(128, activation='tanh', kernel_regularizer=l2(0.02),
+          kernel_initializer=Orthogonal(gain=0.8))(x)
+x = Dense(128, activation=None, kernel_regularizer=l2(0.02),
+          kernel_initializer=Orthogonal(gain=0.3))(x)
+x = Dense(256, activation='tanh', kernel_regularizer=l2(0.02),
+          kernel_initializer=Orthogonal(gain=0.6))(x)
+x = Dense(512, activation='sigmoid', kernel_regularizer=l2(0.02),
+          kernel_initializer=Orthogonal(gain=0.5))(x)
 
 # Output layer (obrigatoriamente depois)
-Output_layer = Dense(3, activation=None, name='Uxyz_Output')(x)
+Output_layer = Dense(3, activation='tanh', name='Uxyz_Output')(x)
 
 # Criando modelo
 model = Model(inputs=[XZ_input, U_entr], outputs=[Output_layer])
 
 # COMPILANDO A REDE
-model.compile(optimizer='rmsprop', loss='mae', metrics=['accuracy', 'lr'])
+model.compile(optimizer='rmsprop', loss='mse', metrics=['accuracy', 'mae'])
 
 # Gerando pastas para armazenar os dados do tensorboard
 FOLDER = './Models/Multi_Input/AutoEncoder/'
@@ -136,11 +151,11 @@ TB = TensorBoard(log_dir=LOGDIR, histogram_freq=30, write_grads=True,
                  write_images=False)
 
 # Interromper Treinamento
-ES = EarlyStopping(monitor='loss', min_delta=0.0001, patience=175,
+ES = EarlyStopping(monitor='val_loss', min_delta=0.0001, patience=175,
                    restore_best_weights=True)
 
 # Reduzir taxa de aprendizagem
-RLRP = ReduceLROnPlateau(monitor='loss', factor=0.1, patience=30, verbose=1,
+RLRP = ReduceLROnPlateau(monitor='val_loss', factor=0.01, patience=30, verbose=1,
                          min_lr=1E-10)
 
 # Lista de Callbacks completa
@@ -163,8 +178,8 @@ model.fit({'XZ_input': X_TRAIN[..., :2],
           {'Uxyz_Output': Y_TRAIN},
           validation_data=({'XZ_input': X_TEST[..., :2],
                             'U_entr': X_TEST[..., 0].reshape(X_TEST.shape[0], -1, 1)},
-          {'Uxyz_Output': Y_TEST}),
-          epochs=3000, batch_size=8, callbacks=CBCK, verbose=0)
+                           {'Uxyz_Output': Y_TEST}),
+          epochs=3000, batch_size=4, callbacks=CBCK, verbose=0)
 print("Finished Trainning")
 
 
