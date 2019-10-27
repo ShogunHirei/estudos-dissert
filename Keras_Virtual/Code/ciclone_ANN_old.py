@@ -101,43 +101,39 @@ X_TRAIN, X_TEST, Y_TRAIN, Y_TEST = train_test_split(
 XZ_input = Input(
     shape=(scaled_U_XZ.shape[1], XZ.shape[-1]), dtype='float32', name='XZ_input')
 # Criando camada completamente conectada
-XZ_out = Dense(512, activation='tanh')(XZ_input)
+XZ_out = Dense(512, activation=None)(XZ_input)
 
 # Camada de Input de Velocidade de entrada
 U_entr = Input(
     shape=(scaled_U_XZ.shape[1], INPUT_U.shape[-1]), dtype='float32', name='U_entr')
 # Criando camada completamente conectada
-U_out = Dense(512, activation='tanh')(U_entr)
+U_out = Dense(512, activation=None)(U_entr)
 
 # Concatenando as camadas de U_entr e XZ_input
 Conc1 = concatenate([XZ_out, U_out])
 
 # Criando Camadas escondidas
-x = Dense(256, activation='tanh', kernel_regularizer=l2(0.02),
-          kernel_initializer=Orthogonal(gain=0.56))(Conc1)
-x = Dense(128, activation='sigmoid', kernel_regularizer=l2(0.02),
-          kernel_initializer=Orthogonal(gain=0.76))(x)
-x = Dense(128, activation=None, kernel_regularizer=l2(0.02),
-          kernel_initializer=Orthogonal(gain=0.8))(x)
-x = Dense(128, activation='sigmoid', kernel_regularizer=l2(0.02),
-          kernel_initializer=Orthogonal(gain=0.8))(x)
-x = Dense(128, activation='tanh', kernel_regularizer=l2(0.02),
-          kernel_initializer=Orthogonal(gain=0.8))(x)
-x = Dense(128, activation=None, kernel_regularizer=l2(0.02),
-          kernel_initializer=Orthogonal(gain=0.3))(x)
-x = Dense(256, activation='tanh', kernel_regularizer=l2(0.02),
-          kernel_initializer=Orthogonal(gain=0.6))(x)
-x = Dense(512, activation='sigmoid', kernel_regularizer=l2(0.02),
-          kernel_initializer=Orthogonal(gain=0.5))(x)
+x = Dense(256, activation='tanh',)(Conc1)  #kernel_regularizer=l2(0.02),
+          #  kernel_initializer=Orthogonal(gain=0.56))(Conc1)
+x = Dense(256, activation='sigmoid',)(x) #kernel_regularizer=l2(0.02),
+          #  kernel_initializer=Orthogonal(gain=0.76))(x)
+x = Dense(128, activation='tanh')(x)#kernel_regularizer=l2(0.02),
+          #  kernel_initializer=Orthogonal(gain=0.5))(x)
+x = Dense(256, activation='relu')(x)#kernel_regularizer=l2(0.02),
+          #  kernel_initializer=Orthogonal(gain=0.5))(x)
+x = Dense(256, activation='sigmoid')(x)#kernel_regularizer=l2(0.02),
+          #  kernel_initializer=Orthogonal(gain=0.5))(x)
+x = Dense(512, activation='tanh')(x)#kernel_regularizer=l2(0.02),
+          #  kernel_initializer=Orthogonal(gain=0.5))(x)
 
 # Output layer (obrigatoriamente depois)
-Output_layer = Dense(3, activation='tanh', name='Uxyz_Output')(x)
+Output_layer = Dense(3, activation='sigmoid', name='Uxyz_Output')(x)
 
 # Criando modelo
 model = Model(inputs=[XZ_input, U_entr], outputs=[Output_layer])
 
 # COMPILANDO A REDE
-model.compile(optimizer='rmsprop', loss='mse', metrics=['accuracy', 'mae'])
+model.compile(optimizer='rmsprop', loss='mse', metrics=['accuracy', 'mae', 'hinge'])
 
 # Gerando pastas para armazenar os dados do tensorboard
 FOLDER = './Models/Multi_Input/AutoEncoder/'
@@ -151,12 +147,12 @@ TB = TensorBoard(log_dir=LOGDIR, histogram_freq=30, write_grads=True,
                  write_images=False)
 
 # Interromper Treinamento
-ES = EarlyStopping(monitor='val_loss', min_delta=0.0001, patience=175,
-                   restore_best_weights=True)
+ES = EarlyStopping(monitor='val_acc', min_delta=0.00001, patience=175,
+                   restore_best_weights=True, baseline=0.7, mode='max')
 
 # Reduzir taxa de aprendizagem
-RLRP = ReduceLROnPlateau(monitor='val_loss', factor=0.01, patience=30, verbose=1,
-                         min_lr=1E-10)
+RLRP = ReduceLROnPlateau(monitor='val_loss', factor=0.1, patience=30, verbose=1,
+                         min_lr=1E-7)
 
 # Lista de Callbacks completa
 CBCK = [TB, ES, RLRP]
@@ -174,18 +170,18 @@ print("Início de treinamento")
 
 # X_TRAIN.shape[0] é a quantidade de amostras
 model.fit({'XZ_input': X_TRAIN[..., :2],
-           'U_entr': X_TRAIN[..., 0].reshape(X_TRAIN.shape[0], -1, 1)},
+           'U_entr': X_TRAIN[..., 2].reshape(X_TRAIN.shape[0], -1, 1)},
           {'Uxyz_Output': Y_TRAIN},
           validation_data=({'XZ_input': X_TEST[..., :2],
-                            'U_entr': X_TEST[..., 0].reshape(X_TEST.shape[0], -1, 1)},
+                            'U_entr': X_TEST[..., 2].reshape(X_TEST.shape[0], -1, 1)},
                            {'Uxyz_Output': Y_TEST}),
-          epochs=3000, batch_size=4, callbacks=CBCK, verbose=0)
+          epochs=5000, batch_size=4, callbacks=CBCK, verbose=0)
 print("Finished Trainning")
 
 
 # Avaliando rede neural
 scores = model.evaluate({'XZ_input': X_TEST[..., :2],
-                         'U_entr': X_TEST[..., 0].reshape(X_TEST.shape[0], -1, 1)},
+                         'U_entr': X_TEST[..., 2].reshape(X_TEST.shape[0], -1, 1)},
                         {'Uxyz_Output': Y_TEST})
 print(f'Acurácia do modelo: {scores}')
 

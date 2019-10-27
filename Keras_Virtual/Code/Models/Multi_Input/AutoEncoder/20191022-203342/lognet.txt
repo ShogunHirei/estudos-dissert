@@ -1,7 +1,0 @@
-name dense_1 800
-name dense_2 800
-name dense_3 512
-name dense_4 256
-name dense_5 512
-name dense_6 800
-name Uxyz_Output 3
