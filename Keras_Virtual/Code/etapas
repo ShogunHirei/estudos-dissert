@@ -1,0 +1,14 @@
+1 teste -> Treinar Vx Vy e Vz separados (sem conservação de massa)
+2 teste -> vx vy e Vmag ->tentar conservar a rede
+3 teste --> Inserir Vmag mais info
+4 teste ->
+
+Problemas 
+    Conservação de massa 
+        Posteriori: 
+            Treinar Ux Uy e Uz
+            Calcular div V e determinar se igual a 0 (cavity)
+
+        Acoplado: Trenar Vxyz e Div V
+        Verificar Parede (clip)
+
