@@ -233,8 +233,8 @@ def zero_wall_mag(y_pred, y_true, wall_val, xz_dict):
     M_p = K.sqrt(K.sum(K.square(y_pred), axis=-1))
     for indx, xz in enumerate(xz_dict):
         if xz_dict[indx] == wall_val[indx]:
-            y_pred[indx] = tf.zeros(3)
-            tf.Session().run(y_pred.eval())
+            # y_pred[indx] = tf.zeros(3)
+            tf.Session().run(tf.assign(y_pred[indx], tf.zeros(3)))
     return K.mean(K.square(y_pred - y_true), axis=-1) + K.abs(M_p - M_t)
 
 

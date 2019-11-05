@@ -12,7 +12,7 @@ from keras.layers import Dense, concatenate, Input
 from keras.callbacks import TensorBoard, EarlyStopping, ReduceLROnPlateau, ModelCheckpoint
 from keras import backend as K
 from Scripts.auxiliar_functions import rec_function, TrainingData, zero_wall_mag, mag_diff_loss
-from functools import partial
+from functools import partial, update_wrapper
 from datetime import datetime
 from pandas import DataFrame, read_csv, concat
 
@@ -73,22 +73,24 @@ Out_U_mag = Dense(3, activation='tanh', name='Mag')(x)
 model = Model(inputs=[XZ_input, U_entr],
               outputs=[Out_U_mag])
 
+#### TODO: COLOCAR SESSÃO DE CÓDIGO EM AUXILIAR FUNCTIONS
 # Determinando os pontos que estão na parede
-wall_map = []
-
 # Vetor A com a magnitude da distância entre o centro e o dado mais externo
 # no eixo 1
 A = np.array([np.mean(X_TRAIN[..., 0]) - np.max(X_TRAIN[..., 1]), 0])
-
-# Iterando em relação dos pontos
-for pnt in X_TRAIN[..., :2][0]:
-    B = np.array(pnt) - np.mean(X_TRAIN[..., :2][0], axis=0)
+wall_map = []
+for pnt in X_TRAIN[0, :2]:
+    # Diferença entre o ponto analisado e o centro
+    B = np.array(pnt) - np.mean(X_TRAIN[0, :2], axis=0)
     if np.sqrt(np.sum(np.square(B))) >= 0.99*np.sqrt(np.sum(np.square(A))):
         wall_map.append([pnt])
 wall_map = np.array(wall_map)
 
 # Nova loss function com a velocidade nula na parede
-new_mag = partial(zero_wall_mag, wall_val=wall_map, xz_dict=X_TRAIN[..., :2])
+new_mag = update_wrapper(partial(zero_wall_mag,
+                                 wall_val=wall_map,
+                                 xz_dict=X_TRAIN[0, :2]),
+                         zero_wall_mag)
 
 # Compilando modelo
 model.compile(optimizer='rmsprop',
@@ -101,7 +103,7 @@ model.compile(optimizer='rmsprop',
 # Criando Callbacks para poder ver o treinamento
 # Tensorboard
 TB = TensorBoard(log_dir=BASE_DIR, histogram_freq=100, write_grads=False,
-                 write_images=False, update_freq='50')
+                 write_images=False, update_freq=50)
 
 # Interromper Treinamento
 ES = EarlyStopping(monitor='val_loss', min_delta=0.00001, patience=175,
@@ -169,7 +171,7 @@ print([p.shape for p in PREDICs])
 # Retornando os dados para a escala anterior
 Ux = DataFrame(scaler_dict['Ux_scaler'].inverse_transform(PREDICs[..., 0]).reshape(-1), columns=['U:0'])
 Uy = DataFrame(scaler_dict['Uy_scaler'].inverse_transform(PREDICs[..., 1]).reshape(-1), columns=['U:1'])
-Uz = DataFrame(scaler_dict['Uz_scaler'].inverse_transform(PREDICs[..., 2]).resh\pe(-1), columns=['U:2'])
+Uz = DataFrame(scaler_dict['Uz_scaler'].inverse_transform(PREDICs[..., 2]).reshape(-1), columns=['U:2'])
 
 # Inserindo valor dos pontos de Y
 XYZ = read_csv(os.scandir(ANN_FOLDER).__next__().path)[['Points:0', 'Points:1', 'Points:2']]
