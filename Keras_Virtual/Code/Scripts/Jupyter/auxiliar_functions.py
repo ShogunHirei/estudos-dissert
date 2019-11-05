@@ -12,78 +12,8 @@ from joblib import dump, load
 from pandas import read_csv, concat, DataFrame
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import MinMaxScaler
-
-
-def rec_function(dic, logfile):
-    """
-    Author: ShogunHirei
-    Description: Função para iterar recursivamente por dicionário de
-                 configuração de rede (model.get_config()) e obter as
-                 características principais da topologia
-    """
-    if type(dic) == dict:
-        for p in dic.keys():
-            if type(dic[p]) == str:
-                string = ''
-                if len(re.findall('name', p)) >= 1:
-                    if 'units' in dic.keys():
-                        string += str(p) + ' ' + str(dic[p])
-                        string += ' ' + str(dic['units'])
-                        logfile.write(string+'\n')
-            elif type(dic[p]) == dict:
-                rec_function(dic[p], logfile)
-            elif type(dic[p]) == list:
-                for y in range(len(dic[p])):
-                    rec_function(dic[p][y], logfile)
-    elif type(dic) == list:
-        for p in range(len(dic)):
-            rec_function(dic[p], logfile)
-
-
-# Classe para escrever dados de maneira organizada
-class Writer:
-    '''
-    Classe para escrever dados de maneira organizada
-    '''
-    import os
-
-    def __init__(self, DATA_ARRAY, Case, Props, Dir):
-        self.data = DATA_ARRAY
-        self.dim = self.data.shape
-        self.name = Case
-        self.props = Props
-        self.folder = Dir
-        self.samples = self.dim[0]
-
-    def mk_path(self, dim, name_pattern, folder_name='', ind=''):
-        '''
-        Criação de pastas de forma recursiva
-        '''
-        if len(dim[:-2]) == 1:
-            path = folder_name + f"{name_pattern[0]}/"
-            self.os.makedirs(path)
-            for folder_num in range(dim[:-2][0]):
-                index = [int(p) for p in str(ind+f"{folder_num}").split(',')]
-                index = tuple(index)
-                name = self.props + "_" + str(folder_num)
-                self.record(index, path, name)
-        else:
-            folder_name += f"{name_pattern[0]}_"
-            for num in range(dim[:-2][0]):
-                folder_name += f"{num+1}/"
-                ind += f"{num},"
-                new_dim = dim[1:]
-                new_names = name_pattern[1:]
-                self.mk_path(new_dim, new_names, folder_name, ind)
-                folder_name = folder_name[:-2]
-                ind = ind[:-2]
-
-    def record(self, ind, DIR, NAME):
-        "Function to record the values in array"
-        with open(f'{DIR}/{NAME}', 'w') as datafile:
-            for dataline in self.data[ind]:
-                datafile.write(str(tuple(dataline)))
-        # Inserir local e indices do array
+from keras import backend as K
+import tensorflow as tf
 
 
 class TrainingData:
@@ -109,9 +39,10 @@ class TrainingData:
                          de treinamento e teste.
 
             U_mag -> Insere a magnitude da velocidade nos componentes
-            load_save_scaler -> Lista de valores para decidir se Carregar
-                                (load_save_scaler[0]) ou salvar (load_save_scaler[1])
-                                os Scalers utilizados.
+            load_sc -> Se for para carregar os scalers salvos
+            save_sc -> não carregar, criar novos scaler e salvá-los
+
+
         """
 
         DF = [(read_csv(dado.path), re.findall(r'\d+\.?\d*_', dado.path)[0][:-1])
@@ -132,9 +63,10 @@ class TrainingData:
         INPUT_U = INPUT_U.reshape(XZ.shape[0], XZ.shape[1], 1)
 
         # Carregando padronizadores
-        scaler_dic = self.return_scaler(load_sc=load_sc)
+        scaler_dic = self.return_scaler(load_sc=load_sc, save_sc=save_sc,
+                                        data_input=[XZ, INPUT_U, U_xyz])
 
-        # Cada valor do dicionário scaler_dic referencia seu respectivo padronizador
+        # Cada valor do dicionário scaler_dic referencia seu padronizador
         # utilizando isso para escalonar os dados
         scaled_XZ = np.array([scaler_dic['XZ'].transform(sample) for sample in XZ])
         scaled_inputU = np.array([scaler_dic['U_in'].transform(sample)
@@ -163,7 +95,8 @@ class TrainingData:
 
         (X_TRAIN, X_TEST,
          Y_TRAIN, Y_TEST) = train_test_split(np.concatenate((scaled_XZ,
-                                                             scaled_inputU), axis=2),
+                                                             scaled_inputU),
+                                                            axis=2),
                                              scaled_Uxyz,
                                              test_size=test_split)
 
@@ -179,7 +112,7 @@ class TrainingData:
             File: training_data.py
             Function Name: U_mag_data_gen
             Summary: Gerar dados de magnitude da velocidade para concatenação
-            Description: Função interna da classe para agregar dados de magnitude
+            Description: Função interna para agregar dados de magnitude
         """
 
         U_mag = [(sample**2).apply(np.sum, axis=1).apply(np.sqrt)
@@ -237,3 +170,115 @@ class TrainingData:
 
         return SCALER_DICT
 
+
+def rec_function(dic, logfile):
+    """
+    Author: ShogunHirei
+    Description: Função para iterar recursivamente por dicionário de
+                 configuração de rede (model.get_config()) e obter as
+                 características principais da topologia
+    """
+    if type(dic) == dict:
+        for p in dic.keys():
+            if type(dic[p]) == str:
+                string = ''
+                if len(re.findall('name', p)) >= 1:
+                    if 'units' in dic.keys():
+                        string += str(p) + ' ' + str(dic[p])
+                        string += ' ' + str(dic['units'])
+                        logfile.write(string+'\n')
+            elif type(dic[p]) == dict:
+                rec_function(dic[p], logfile)
+            elif type(dic[p]) == list:
+                for y in range(len(dic[p])):
+                    rec_function(dic[p][y], logfile)
+    elif type(dic) == list:
+        for p in range(len(dic)):
+            rec_function(dic[p], logfile)
+
+
+# Função loss Customizada para magnitude
+def mag_diff_loss(y_pred, y_true):
+    """
+        File: mag_isolated_prediction.py
+        Function Name: mag_loss
+        Summary: Função de custo para rede neural
+        Description: Loss que adiciona a diferença da magnitude como penalidade
+    """
+    # Magnitude dos valores reais
+    M_t = K.sqrt(K.sum(K.square(y_true), axis=-1))
+    # Magnitude dos valores previstos
+    M_p = K.sqrt(K.sum(K.square(y_pred), axis=-1))
+
+    return K.mean(K.square(y_pred - y_true), axis=-1) + K.abs(M_p - M_t)
+
+
+def zero_wall_mag(y_pred, y_true, wall_val, xz_dict):
+    """
+        File: mag_isolated_prediction.py
+        Function Name: mag_loss
+        Summary: Função de custo para rede neural
+        Description: Mudando o valor de y_pred para a condição de velocidade
+                     nula na parede, e adicionando a diferença entre
+                     as magnitudes da rede e experimentais.
+
+        new_mag = functools.partial(zero_wall_mag, wall_val=U_arr, xz_dict=XZ')
+        U_arr --> Array com os dados de velocidade na parede
+        XZ --> dados mapeados com os pontos cartesianos
+                (considerado plano cilíndrico, uma amostra)
+    """
+    # Magnitude dos valores reais
+    M_t = K.sqrt(K.sum(K.square(y_true), axis=-1))
+    # Magnitude dos valores previstos
+    M_p = K.sqrt(K.sum(K.square(y_pred), axis=-1))
+    for indx, xz in enumerate(xz_dict):
+        if xz_dict[indx] == wall_val[indx]:
+            y_pred[indx] = tf.zeros(3)
+            tf.Session().run(y_pred.eval())
+    return K.mean(K.square(y_pred - y_true), axis=-1) + K.abs(M_p - M_t)
+
+
+# Classe para escrever dados de maneira organizada
+class Writer:
+    '''
+    Classe para escrever dados de maneira organizada
+    '''
+    import os
+
+    def __init__(self, DATA_ARRAY, Case, Props, Dir):
+        self.data = DATA_ARRAY
+        self.dim = self.data.shape
+        self.name = Case
+        self.props = Props
+        self.folder = Dir
+        self.samples = self.dim[0]
+
+    def mk_path(self, dim, name_pattern, folder_name='', ind=''):
+        '''
+        Criação de pastas de forma recursiva
+        '''
+        if len(dim[:-2]) == 1:
+            path = folder_name + f"{name_pattern[0]}/"
+            self.os.makedirs(path)
+            for folder_num in range(dim[:-2][0]):
+                index = [int(p) for p in str(ind+f"{folder_num}").split(',')]
+                index = tuple(index)
+                name = self.props + "_" + str(folder_num)
+                self.record(index, path, name)
+        else:
+            folder_name += f"{name_pattern[0]}_"
+            for num in range(dim[:-2][0]):
+                folder_name += f"{num+1}/"
+                ind += f"{num},"
+                new_dim = dim[1:]
+                new_names = name_pattern[1:]
+                self.mk_path(new_dim, new_names, folder_name, ind)
+                folder_name = folder_name[:-2]
+                ind = ind[:-2]
+
+    def record(self, ind, DIR, NAME):
+        "Function to record the values in array"
+        with open(f'{DIR}/{NAME}', 'w') as datafile:
+            for dataline in self.data[ind]:
+                datafile.write(str(tuple(dataline)))
+        # Inserir local e indices do array

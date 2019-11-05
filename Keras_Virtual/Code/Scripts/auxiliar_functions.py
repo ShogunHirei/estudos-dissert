@@ -12,6 +12,8 @@ from joblib import dump, load
 from pandas import read_csv, concat, DataFrame
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import MinMaxScaler
+from keras import backend as K
+import tensorflow as tf
 
 
 class TrainingData:
@@ -168,6 +170,7 @@ class TrainingData:
 
         return SCALER_DICT
 
+
 def rec_function(dic, logfile):
     """
     Author: ShogunHirei
@@ -192,6 +195,47 @@ def rec_function(dic, logfile):
     elif type(dic) == list:
         for p in range(len(dic)):
             rec_function(dic[p], logfile)
+
+
+# Função loss Customizada para magnitude
+def mag_diff_loss(y_pred, y_true):
+    """
+        File: mag_isolated_prediction.py
+        Function Name: mag_loss
+        Summary: Função de custo para rede neural
+        Description: Loss que adiciona a diferença da magnitude como penalidade
+    """
+    # Magnitude dos valores reais
+    M_t = K.sqrt(K.sum(K.square(y_true), axis=-1))
+    # Magnitude dos valores previstos
+    M_p = K.sqrt(K.sum(K.square(y_pred), axis=-1))
+
+    return K.mean(K.square(y_pred - y_true), axis=-1) + K.abs(M_p - M_t)
+
+
+def zero_wall_mag(y_pred, y_true, wall_val, xz_dict):
+    """
+        File: mag_isolated_prediction.py
+        Function Name: mag_loss
+        Summary: Função de custo para rede neural
+        Description: Mudando o valor de y_pred para a condição de velocidade
+                     nula na parede, e adicionando a diferença entre
+                     as magnitudes da rede e experimentais.
+
+        new_mag = functools.partial(zero_wall_mag, wall_val=U_arr, xz_dict=XZ')
+        U_arr --> Array com os dados de velocidade na parede
+        XZ --> dados mapeados com os pontos cartesianos
+                (considerado plano cilíndrico, uma amostra)
+    """
+    # Magnitude dos valores reais
+    M_t = K.sqrt(K.sum(K.square(y_true), axis=-1))
+    # Magnitude dos valores previstos
+    M_p = K.sqrt(K.sum(K.square(y_pred), axis=-1))
+    for indx, xz in enumerate(xz_dict):
+        if xz_dict[indx] == wall_val[indx]:
+            y_pred[indx] = tf.zeros(3)
+            tf.Session().run(y_pred.eval())
+    return K.mean(K.square(y_pred - y_true), axis=-1) + K.abs(M_p - M_t)
 
 
 # Classe para escrever dados de maneira organizada
@@ -238,4 +282,3 @@ class Writer:
             for dataline in self.data[ind]:
                 datafile.write(str(tuple(dataline)))
         # Inserir local e indices do array
-

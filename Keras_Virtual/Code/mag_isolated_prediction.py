@@ -11,7 +11,8 @@ from keras.models import Model
 from keras.layers import Dense, concatenate, Input
 from keras.callbacks import TensorBoard, EarlyStopping, ReduceLROnPlateau, ModelCheckpoint
 from keras import backend as K
-from Scripts.auxiliar_functions import rec_function, TrainingData
+from Scripts.auxiliar_functions import rec_function, TrainingData, zero_wall_mag, mag_diff_loss
+from functools import partial
 from datetime import datetime
 from pandas import DataFrame, read_csv, concat
 
@@ -42,13 +43,13 @@ X_TRAIN, X_TEST, Y_TRAIN, Y_TEST = DATA.data_gen(test_split=0.25,
 XZ_input = Input(
     shape=(X_TRAIN.shape[1], 2), dtype='float32', name='XZ_input')
 # Criando camada completamente conectada
-XZ_out = Dense(128, activation=None)(XZ_input)
+XZ_out = Dense(128, activation='tanh')(XZ_input)
 
 # Camada de Input de Velocidade de entrada
 U_entr = Input(
     shape=(X_TRAIN.shape[1], 1), dtype='float32', name='U_entr')
 # Criando camada completamente conectada
-U_out = Dense(128, activation=None)(U_entr)
+U_out = Dense(128, activation='tanh')(U_entr)
 
 # Concatenando as camadas de U_entr e XZ_input
 Conc1 = concatenate([XZ_out, U_out])
@@ -56,6 +57,8 @@ Conc1 = concatenate([XZ_out, U_out])
 #  HIDDEN LAYERS
 x = Dense(128, activation='tanh')(Conc1)
 x = Dense(64, activation='tanh')(x)
+x = Dense(32, activation='tanh')(x)
+x = Dense(16, activation='tanh')(x)
 x = Dense(32, activation='tanh')(x)
 x = Dense(64, activation='tanh')(x)
 x = Dense(128, activation='tanh')(x)
@@ -70,46 +73,46 @@ Out_U_mag = Dense(3, activation='tanh', name='Mag')(x)
 model = Model(inputs=[XZ_input, U_entr],
               outputs=[Out_U_mag])
 
+# Determinando os pontos que estão na parede
+wall_map = []
 
-# Função loss Customizada para magnitude
-def mag_loss(y_pred, y_true):
-    """
-        File: mag_isolated_prediction.py
-        Function Name: mag_loss
-        Summary: Função de custo para rede neural
-        Description: Loss que adiciona a diferença da magnitude como penalidade
-    """
-    # Magnitude dos valores reais
-    M_t = K.sqrt(K.sum(K.square(y_true), axis=-1))
-    # Magnitude dos valores previstos
-    M_p = K.sqrt(K.sum(K.square(y_pred), axis=-1))
+# Vetor A com a magnitude da distância entre o centro e o dado mais externo
+# no eixo 1
+A = np.array([np.mean(X_TRAIN[..., 0]) - np.max(X_TRAIN[..., 1]), 0])
 
-    return K.mean(K.square(y_pred - y_true), axis=-1) + K.abs(M_p - M_t)
+# Iterando em relação dos pontos
+for pnt in X_TRAIN[..., :2][0]:
+    B = np.array(pnt) - np.mean(X_TRAIN[..., :2][0], axis=0)
+    if np.sqrt(np.sum(np.square(B))) >= 0.99*np.sqrt(np.sum(np.square(A))):
+        wall_map.append([pnt])
+wall_map = np.array(wall_map)
 
+# Nova loss function com a velocidade nula na parede
+new_mag = partial(zero_wall_mag, wall_val=wall_map, xz_dict=X_TRAIN[..., :2])
 
 # Compilando modelo
 model.compile(optimizer='rmsprop',
               loss={  # 'Ux_Output': 'mse', 'Uy_Output': 'mse', 'Uz_Output': 'mse',
-                    'Mag': mag_loss},
+                    'Mag': new_mag},
               loss_weights={'Mag': 1},
-              metrics={'Mag': ['cosine', 'mae']})
+              metrics={'Mag': ['cosine', 'mae', mag_diff_loss]})
 
 
 # Criando Callbacks para poder ver o treinamento
 # Tensorboard
 TB = TensorBoard(log_dir=BASE_DIR, histogram_freq=100, write_grads=False,
-                 write_images=False, update_freq=100)
+                 write_images=False, update_freq='50')
 
 # Interromper Treinamento
-ES = EarlyStopping(monitor='val_loss', min_delta=0.000001, patience=175,
+ES = EarlyStopping(monitor='val_loss', min_delta=0.00001, patience=175,
                    restore_best_weights=True, )
 
 # Reduzir taxa de aprendizagem
 RLRP = ReduceLROnPlateau(monitor='mae', factor=0.1, patience=70, verbose=1,
                          min_lr=1E-10)
 
-MDCHK = ModelCheckpoint(BASE_DIR+'chekpoint_{epoch:2d}.hdf5', monitor='mae',
-                        period=100, save_best_only=False, mode='min')
+MDCHK = ModelCheckpoint(BASE_DIR+'chekpoint_{epoch:2d}.hdf5', monitor='loss',
+                        period=1000, save_best_only=False, mode='min')
 
 # Lista de Callbacks completa
 CBCK = [TB, ES, RLRP, MDCHK]
@@ -141,7 +144,7 @@ model.fit({'XZ_input': X_TRAIN[..., :2],
                             # 'Uz_Output': Y_TEST[..., 2].reshape(Y_TEST.shape[0], -1, 1),
                             {'Mag': Y_TEST.reshape(Y_TEST.shape[0], -1, 3)},
                            ),
-          epochs=10000, batch_size=8, callbacks=CBCK, verbose=1)
+          epochs=30000, batch_size=4, callbacks=CBCK, verbose=1)
 print("Finished Training U")
 
 # Salvar rede para gerar arquivos depois
@@ -166,7 +169,7 @@ print([p.shape for p in PREDICs])
 # Retornando os dados para a escala anterior
 Ux = DataFrame(scaler_dict['Ux_scaler'].inverse_transform(PREDICs[..., 0]).reshape(-1), columns=['U:0'])
 Uy = DataFrame(scaler_dict['Uy_scaler'].inverse_transform(PREDICs[..., 1]).reshape(-1), columns=['U:1'])
-Uz = DataFrame(scaler_dict['Uz_scaler'].inverse_transform(PREDICs[..., 2]).reshape(-1), columns=['U:2'])
+Uz = DataFrame(scaler_dict['Uz_scaler'].inverse_transform(PREDICs[..., 2]).resh\pe(-1), columns=['U:2'])
 
 # Inserindo valor dos pontos de Y
 XYZ = read_csv(os.scandir(ANN_FOLDER).__next__().path)[['Points:0', 'Points:1', 'Points:2']]
