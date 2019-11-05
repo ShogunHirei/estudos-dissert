@@ -17,7 +17,7 @@ from keras.regularizers import l1, l2
 from keras.callbacks import EarlyStopping, ReduceLROnPlateau, TensorBoard
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler  # , Normalizer, MinMaxScaler
-from Scripts.auxiliar_functions import rec_function
+from Scripts.auxiliar_functions import rec_function, TrainingData
 # Módulos para a otimização dos hyperparametros da rede
 from hyperas import optim
 from hyperas.distributions import choice, uniform
@@ -35,71 +35,9 @@ def data_generator():
     ANN_FOLDER = '/home/lucashqr/Documentos/Cursos/Keras Training/Virtual/'\
                  'estudos-dissert/Keras_Virtual/Ciclone/ANN_DATA/'
 
-    # Extraindo informações de arquivos CSV e valor da velocidade de entrada
-    DF = [(read_csv(dado.path), re.findall(r'\d+\.?\d*_', dado.path)[0][:-1])
-          for dado in os.scandir(ANN_FOLDER)]
+    DATA = TrainingData(ANN_FOLDER)
 
-    N_SAMPLES = len(os.listdir(ANN_FOLDER))
-
-    # Separando os dados de posição para X e Z (y fixo)
-    XZ = [dado[0][['Points:0', 'Points:2']] for dado in DF]
-
-    # Valores de velocidade com o mesmo shape dos outros inputs
-    INPUT_U = [[float(dado[1])] * len(XZ[0]) for dado in DF]
-
-    # Componentes de velocidade dos pontos (OUTPUT)
-    U_xyz = [dado[0][['U:0', 'U:1', 'U:2']] for dado in DF]
-
-    XZ = np.array([np.array(sample) for sample in XZ])
-    U_xyz = np.array([np.array(sample) for sample in U_xyz])
-    INPUT_U = np.array([np.array(sample) for sample in INPUT_U])
-
-    # Convertendo shape das velocidades para ficarem de acordo input de posição
-    INPUT_U = INPUT_U.reshape(XZ.shape[0], XZ.shape[1], 1)
-
-    # Liberando espaço na memória
-    del DF
-
-    # ETAPA DE PADRONIZAÇÃO DE DADOS
-    # Dados de posição são repetidos
-    XZ_scaler = StandardScaler().fit(XZ[0])
-    INPUT_U_scaler = StandardScaler().fit(INPUT_U[:, 0])
-    Ux_scaler = StandardScaler().fit(U_xyz[..., 0])
-    Uy_scaler = StandardScaler().fit(U_xyz[..., 1])
-    Uz_scaler = StandardScaler().fit(U_xyz[..., 2])
-
-    # Para reutilizar os parametros dos padronizadores
-    # salvar em partes externas
-    SC_DIR = './Models/Multi_Input/Scaler/'
-    dump(XZ_scaler, SC_DIR+'points_scaler.joblib')
-    dump(INPUT_U_scaler, SC_DIR+'U_input_scaler.joblib')
-    dump(Ux_scaler, SC_DIR+'Ux_scaler.joblib')
-    dump(Uy_scaler, SC_DIR+'Uy_scaler.joblib')
-    dump(Uz_scaler, SC_DIR+'Uz_scaler.joblib')
-
-    scaled_XZ = np.array([XZ_scaler.transform(sample) for sample in XZ])
-    # ORIGINAL_XZ = np.array([ XZ_scaler.inverse_transform(sample) for sample in scaled_XZ])
-    scaled_inputU = np.array(
-        [INPUT_U_scaler.transform(sample) for sample in INPUT_U])
-    scaled_Ux = np.array(Ux_scaler.transform(U_xyz[:, :, 0]))
-    scaled_Uy = np.array(Uy_scaler.transform(U_xyz[:, :, 1]))
-    scaled_Uz = np.array(Uz_scaler.transform(U_xyz[:, :, 2]))
-
-    # Mudando o shape para adequar ao formato original
-    scaled_Ux = scaled_Ux.reshape(N_SAMPLES, -1, 1)
-    scaled_Uy = scaled_Uy.reshape(N_SAMPLES, -1, 1)
-    scaled_Uz = scaled_Uz.reshape(N_SAMPLES, -1, 1)
-    scaled_Uxyz = np.concatenate((scaled_Ux, scaled_Uy, scaled_Uz), axis=2)
-    print(scaled_Uxyz.shape)
-
-    # Concatenado os array de posição e velocidade para usar como entrada
-    scaled_U_XZ = np.concatenate((scaled_XZ, scaled_inputU), axis=2)
-
-    # PREPARANDO CONJUNTOS PARA TREINAMENTO E TESTE
-    x_train, x_test, y_train, y_test = train_test_split(
-                                                        scaled_U_XZ,
-                                                        scaled_Uxyz,
-                                                        test_size=0.15)
+    x_train, y_train, x_test, y_test = DATA.data_gen()
 
     return x_train, y_train, x_test, y_test
 
@@ -201,10 +139,10 @@ def model_creator(x_train, y_train, x_test, y_test):
 
     # X_TRAIN.shape[0] é a quantidade de amostras
     result = model.fit({'XZ_input': x_train[..., :2],
-                        'U_entr': x_train[..., 0].reshape(x_train.shape[0], -1, 1)},
+                        'U_entr': x_train[..., 2].reshape(x_train.shape[0], -1, 1)},
                        {'Uxyz_Output': y_train},
                        validation_data=({'XZ_input': x_test[..., :2],
-                                         'U_entr': x_test[..., 0].reshape(x_test.shape[0], -1, 1)},
+                                         'U_entr': x_test[..., 2].reshape(x_test.shape[0], -1, 1)},
                                         {'Uxyz_Output': y_test}),
                        epochs=3000, batch_size={{choice([4, 8, 12])}}, callbacks=CBCK, verbose=1)
     # Salvar rede para gerar arquivos depois
@@ -212,7 +150,7 @@ def model_creator(x_train, y_train, x_test, y_test):
     SAVE_FOLDER = LOGDIR
     NET_NAME = "CicloneNet_" + NOW.strftime("%Y%m%d-%H%M%S")
     model.save(SAVE_FOLDER + NET_NAME)
-    
+
     # Melhor modelo (tutorial)
     validation_acc = np.amax(result.history['val_acc'])
     print('Best validation acc of epoch:', validation_acc)

@@ -17,8 +17,8 @@ from keras.initializers import Orthogonal
 from keras.callbacks import EarlyStopping, ReduceLROnPlateau, TensorBoard
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
+from Scripts.auxiliar_functions import rec_function, TrainingData
 import numpy as np
-from Scripts.auxiliar_functions import rec_function
 
 
 # Preparar input da rede neural
@@ -30,64 +30,11 @@ from Scripts.auxiliar_functions import rec_function
 ANN_FOLDER = '/home/lucashqr/Documentos/Cursos/Keras Training/Virtual/'\
              'estudos-dissert/Keras_Virtual/Ciclone/ANN_DATA/'
 
-# Extraindo informações de arquivos CSV e valor da velocidade de entrada
-DF = [(read_csv(dado.path), re.findall(r'\d+\.?\d*_', dado.path)[0][:-1])
-      for dado in os.scandir(ANN_FOLDER)]
+# Usando a classe construída para obter os dados de trainamento
+DATA = TrainingData(ANN_FOLDER)  # Usando MinMaxScaler
 
-N_SAMPLES = len(os.listdir(ANN_FOLDER))
-
-# Separando os dados de posição para X e Z (y fixo)
-XZ = [dado[0][['Points:0', 'Points:2']] for dado in DF]
-
-# Valores de velocidade com o mesmo shape dos outros inputs
-INPUT_U = [[float(dado[1])] * len(XZ[0]) for dado in DF]
-
-# Componentes de velocidade dos pontos (OUTPUT)
-U_x = [dado[0]['U:0'] for dado in DF]
-U_y = [dado[0]['U:1'] for dado in DF]
-U_z = [dado[0]['U:2'] for dado in DF]
-
-XZ = np.array([np.array(sample) for sample in XZ])
-U_x = np.array([np.array(sample) for sample in U_x])
-U_y = np.array([np.array(sample) for sample in U_y])
-U_z = np.array([np.array(sample) for sample in U_z])
-INPUT_U = np.array([np.array(sample) for sample in INPUT_U])
-
-# Convertendo shape das velocidades para ficarem de acordo input de posição
-INPUT_U = INPUT_U.reshape(XZ.shape[0], XZ.shape[1], 1)
-
-# Liberando espaço na memória
-del DF
-
-# Criando as instancias para a padronização dos dados
-XZ_scaler = StandardScaler().fit(XZ[0])
-INPUT_U_scaler = StandardScaler().fit(INPUT_U[:, 0])
-Ux_scaler = StandardScaler().fit(U_x)
-Uy_scaler = StandardScaler().fit(U_y)
-Uz_scaler = StandardScaler().fit(U_z)
-
-
-# Padronizando os dados
-scaled_XZ = np.array([XZ_scaler.transform(sample) for sample in XZ])
-scaled_inputU = np.array([INPUT_U_scaler.transform(sample) for sample in INPUT_U])
-scaled_Ux = np.array(Ux_scaler.transform(U_x))
-print(scaled_Ux.shape)
-scaled_Uy = np.array(Uy_scaler.transform(U_y))
-scaled_Uz = np.array(Uz_scaler.transform(U_z))
-
-# Mudando o shape para adequar ao formato original
-scaled_Ux = scaled_Ux.reshape(N_SAMPLES, -1, 1)
-scaled_Uy = scaled_Uy.reshape(N_SAMPLES, -1, 1)
-scaled_Uz = scaled_Uz.reshape(N_SAMPLES, -1, 1)
-
-# Concatenado os array de posição e velocidade para usar como entrada
-scaled_U_XZ = np.concatenate((scaled_XZ, scaled_inputU), axis=2)
-scaled_Uxyz = np.concatenate((scaled_Ux, scaled_Uy, scaled_Uz), axis=2)
-
-# PREPARANDO CONJUNTOS PARA TREINAMENTO E TESTE
-X_TRAIN, X_TEST, Y_TRAIN, Y_TEST = train_test_split(
-    scaled_U_XZ, scaled_Uxyz, test_size=0.25)
-
+# Gerando o conjunto de dados de treinamento
+X_TRAIN, X_TEST, Y_TRAIN, Y_TEST = DATA.data_gen()
 
 # CRIANDO MODEL DE REDE NEURAL (Multi-Input)
 
@@ -95,13 +42,13 @@ X_TRAIN, X_TEST, Y_TRAIN, Y_TEST = train_test_split(
 
 # Input de posição e velocidade de entrada
 XZ_input = Input(
-    shape=(scaled_U_XZ.shape[1], XZ.shape[-1]), dtype='float32', name='XZ_input')
+    shape=(X_TRAIN.shape[1], 2), dtype='float32', name='XZ_input')
 # Criando camada completamente conectada
 XZ_out = Dense(256, activation=None)(XZ_input)
 
 # Camada de Input de Velocidade de entrada
 U_entr = Input(
-    shape=(scaled_U_XZ.shape[1], INPUT_U.shape[-1]), dtype='float32', name='U_entr')
+    shape=(X_TRAIN.shape[1], 1), dtype='float32', name='U_entr')
 # Criando camada completamente conectada
 U_out = Dense(256, activation=None)(U_entr)
 

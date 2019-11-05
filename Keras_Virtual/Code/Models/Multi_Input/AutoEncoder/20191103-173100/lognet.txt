@@ -1,0 +1,8 @@
+name dense_1 128
+name dense_2 128
+name dense_3 128
+name dense_4 64
+name dense_5 32
+name dense_6 64
+name dense_7 128
+name Mag 3

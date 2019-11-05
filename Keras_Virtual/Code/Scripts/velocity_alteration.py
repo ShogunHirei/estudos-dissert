@@ -11,14 +11,14 @@ import os
 import re
 
 # Considerar que script será realizado dentro da pasta do caso
-FOLDER = './'
+FOLDER = sys.argv[1]
 
 # Considerando que valor de velocidade será inserido como argumento
-VELOC_VALUE = sys.argv[1]
+VELOC_VALUE = sys.argv[2]
 
 # Obter listas das pastas para as iterações de passo de tempo
 TIME_FOLDERS = []
-for entry in os.scandir():
+for entry in os.scandir(FOLDER):
     if len(re.findall(r"[\D]", entry.name))>1:
         continue
     else:
@@ -32,7 +32,7 @@ for entry in TIME_FOLDERS:
     if entry.name == '4200':
         TIME_FOLDERS.remove(entry)
 print(TIME_FOLDERS)
-os.system('rm ./4200 -r')
+#os.system('rm ./4200 -r')
 # Realizar alterações nos arquivos de velocidade para todos os tempos
 for time in TIME_FOLDERS:
     for prop in os.scandir(time.path):
