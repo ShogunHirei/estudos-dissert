@@ -6,6 +6,7 @@ Description: Uso de redes neurais para predizer componentes de velocidade em
 """
 
 import re
+import sys
 import os
 from datetime import datetime
 from joblib import dump
@@ -26,8 +27,7 @@ import numpy as np
 # Será utilizada a velocidade de entrada como parametro de distinção entre as
 # análises
 
-ANN_FOLDER = '/home/lucashqr/Documentos/Cursos/Keras Training/Virtual/'\
-             'estudos-dissert/Keras_Virtual/Ciclone/ANN_DATA/'
+ANN_FOLDER = sys.argv[1]
 
 # Usando a classe construída para obter os dados de trainamento
 DATA = TrainingData(ANN_FOLDER)  # Usando MinMaxScaler

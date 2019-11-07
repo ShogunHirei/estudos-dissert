@@ -7,6 +7,7 @@ Description: Rede neural para a previsão de vetor velocidade utilizando
 """
 
 import os
+import sys
 import numpy as np
 from datetime import datetime
 from keras.models import Model
@@ -25,8 +26,7 @@ os.mkdir(BASE_DIR)
 # Geração de dados
 # Utilizar vetor de velocidade para a previsão
 # Carregando dados para Treinamento
-ANN_FOLDER = '/home/lucashqr/Documentos/Cursos/Keras Training/'\
-             'Virtual/estudos-dissert/Keras_Virtual/Ciclone/ANN_DATA/'
+ANN_FOLDER = sys.argv[1]
 
 # Geração de Conjunto de treinamento e teste
 DATA = TrainingData(ANN_FOLDER, scaler_dir=BASE_DIR)

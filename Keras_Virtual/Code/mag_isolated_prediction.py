@@ -6,6 +6,7 @@ Description: Predição de componentes de velocidade e inserção da magnitude
 """
 
 import os
+import sys
 import numpy as np
 from keras.models import Model
 from keras.layers import Dense, concatenate, Input
@@ -24,8 +25,8 @@ BASE_DIR = './Models/Multi_Input/AutoEncoder/' + NOW.strftime("%Y%m%d-%H%M%S") +
 os.mkdir(BASE_DIR)
 
 # Carregando dados para Treinamento
-ANN_FOLDER = '/home/lucashqr/Documentos/Cursos/Keras Training/'\
-             'Virtual/estudos-dissert/Keras_Virtual/Ciclone/ANN_DATA/'
+ANN_FOLDER = sys.argv[1]
+             
 
 # Geração de Conjunto de treinamento e teste
 DATA = TrainingData(ANN_FOLDER, scaler_dir=BASE_DIR)

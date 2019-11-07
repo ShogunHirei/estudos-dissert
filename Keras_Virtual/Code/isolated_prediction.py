@@ -7,6 +7,7 @@ Description: Implementação de rede neuronal para prever componentes
 
 import re
 import os
+import sys
 from datetime import datetime
 from joblib import load
 from pandas import read_csv, DataFrame, concat
@@ -27,8 +28,7 @@ import numpy as np
 # Será utilizada a velocidade de entrada como parametro de distinção entre as
 # análises
 
-ANN_FOLDER = '/home/lucashqr/Documentos/Cursos/Keras Training/Virtual/'\
-             'estudos-dissert/Keras_Virtual/Ciclone/ANN_DATA/'
+ANN_FOLDER = sys.argv[1]
 
 # Usando a classe construída para obter os dados de trainamento
 DATA = TrainingData(ANN_FOLDER)  # Usando MinMaxScaler
