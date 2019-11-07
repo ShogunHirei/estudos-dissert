@@ -1,21 +1,20 @@
 """
-File: mag_isolated_prediction.py
+File: zero_wall_loss.py
 Author: ShogunHirei
-Description: Predição de componentes de velocidade e inserção da magnitude
-             como parametro para elevar precisão
+Description: Rede neural para a previsão de vetor velocidade utilizando
+             função loss que penaliza componentes de velocidade não-nulos
+             na parede
 """
 
 import os
 import numpy as np
-from keras.models import Model
-from keras.layers import Dense, concatenate, Input
-from keras.callbacks import TensorBoard, EarlyStopping, ReduceLROnPlateau
-from keras import backend as K
-from Scripts.auxiliar_functions import rec_function, TrainingData, mag_diff_loss
-from functools import partial, update_wrapper
 from datetime import datetime
+from keras.models import Model
+from keras.layers import Dense, Input, concatenate
+from keras.callbacks import TensorBoard, EarlyStopping, ReduceLROnPlateau
+from Scripts.auxiliar_functions import TrainingData, rec_function, zero_wall_mag
+from functools import partial, update_wrapper
 from pandas import DataFrame, read_csv, concat
-
 
 # Criando diretório para operações de gravação
 # Gerando pastas para armazenar os dados
@@ -23,6 +22,8 @@ NOW = datetime.now()
 BASE_DIR = './Models/Multi_Input/AutoEncoder/' + NOW.strftime("%Y%m%d-%H%M%S") + '/'
 os.mkdir(BASE_DIR)
 
+# Geração de dados
+# Utilizar vetor de velocidade para a previsão
 # Carregando dados para Treinamento
 ANN_FOLDER = '/home/lucashqr/Documentos/Cursos/Keras Training/'\
              'Virtual/estudos-dissert/Keras_Virtual/Ciclone/ANN_DATA/'
@@ -32,17 +33,15 @@ DATA = TrainingData(ANN_FOLDER, scaler_dir=BASE_DIR)
 
 # Dados de treinamento
 X_TRAIN, X_TEST, Y_TRAIN, Y_TEST = DATA.data_gen(test_split=0.25,
-                                                 U_mag=True,
                                                  load_sc=False,
                                                  save_sc=True)
-
 # MODELO DE REDE NEURAL
-
+# TODO: Criar função ou classe para implementar topologia de
+#       de rede baseada em determinado padrão de entrada
 # Camada de inputs da rede
 
 # Input de posição e velocidade de entrada
-XZ_input = Input(
-    shape=(X_TRAIN.shape[1], 2), dtype='float32', name='XZ_input')
+XZ_input = Input(shape=(X_TRAIN.shape[1], 2), dtype='float32',  name='XZ_input')
 # Criando camada completamente conectada
 XZ_out = Dense(128, activation='tanh')(XZ_input)
 
@@ -63,25 +62,23 @@ x = Dense(16, activation='tanh')(x)
 x = Dense(32, activation='tanh')(x)
 x = Dense(64, activation='tanh')(x)
 x = Dense(128, activation='tanh')(x)
+Out_U_mag = Dense(3, activation='tanh', name='Mag')(x)
 
 # Output layer (obrigatoriamente depois)
-Out_Ux = Dense(1, activation='tanh', name='Ux_Output')(x)
-Out_Uy = Dense(1, activation='tanh', name='Uy_Output')(x)
-Out_Uz = Dense(1, activation='tanh', name='Uz_Output')(x)
-Out_U_mag = Dense(1, activation='tanh', name='Mag')(x)
-
-# Criando modelo
 model = Model(inputs=[XZ_input, U_entr],
-              outputs=[Out_Ux, Out_Uy, Out_Uz, Out_U_mag])
+              outputs=[Out_U_mag])
+
+# Pontos da parede para função de loss
+wall_map = DATA.wall_data(X_TRAIN[0, :, :2])
+print(wall_map.shape)
+
+# Nova loss function com a velocidade nula na parede
+new_mag = update_wrapper(partial(zero_wall_mag,
+                                 wall_val=wall_map),
+                         zero_wall_mag)
 
 # Compilando modelo
-model.compile(optimizer='rmsprop',
-              loss={'Ux_Output': 'mse', 'Uy_Output': 'mse', 'Uz_Output': 'mse',
-                    'Mag': 'mse'},
-              loss_weights={'Ux_Output': 0.7, 'Uy_Output': 0.7, 'Uz_Output': 0.7,
-                            'Mag': 0.3},
-              metrics=['mae', mag_diff_loss])
-
+model.compile(optimizer='rmsprop', loss={'Mag': new_mag})
 
 # Criando Callbacks para poder ver o treinamento
 # Tensorboard
@@ -90,14 +87,14 @@ TB = TensorBoard(log_dir=BASE_DIR, histogram_freq=100, write_grads=False,
 
 # Interromper Treinamento
 ES = EarlyStopping(monitor='val_loss', min_delta=0.00001, patience=175,
-                   restore_best_weights=True)
+                   restore_best_weights=True, )
 
 # Reduzir taxa de aprendizagem
 RLRP = ReduceLROnPlateau(monitor='val_loss', factor=0.1, patience=70, verbose=1,
                          min_lr=1E-10)
 
 # Lista de Callbacks completa
-CBCK = [TB, ES, RLRP ]
+CBCK = [TB, ES, RLRP]
 
 # ETAPA DE TREINAMENTO DA REDE
 # Output de Arquitetura da rede para facilitar optimização
@@ -115,21 +112,17 @@ print("Início de treinamento")
 # X_TRAIN.shape[0] é a quantidade de amostras
 model.fit({'XZ_input': X_TRAIN[..., :2],
            'U_entr': X_TRAIN[..., 2].reshape(X_TRAIN.shape[0], -1, 1)},
-          {'Ux_Output': Y_TRAIN[..., 0].reshape(Y_TRAIN.shape[0], -1, 1),
-           'Uy_Output': Y_TRAIN[..., 1].reshape(Y_TRAIN.shape[0], -1, 1),
-           'Uz_Output': Y_TRAIN[..., 2].reshape(Y_TRAIN.shape[0], -1, 1),
-           'Mag': Y_TRAIN[..., 3].reshape(Y_TRAIN.shape[0], -1, 1)},
+          {'Mag': Y_TRAIN.reshape(Y_TRAIN.shape[0], -1, 3)},
           validation_data=({'XZ_input': X_TEST[..., :2],
                             'U_entr': X_TEST[..., 2].reshape(X_TEST.shape[0], -1, 1)},
-                           {'Ux_Output': Y_TEST[..., 0].reshape(Y_TEST.shape[0], -1, 1),
-                            'Uy_Output': Y_TEST[..., 1].reshape(Y_TEST.shape[0], -1, 1),
-                            'Uz_Output': Y_TEST[..., 2].reshape(Y_TEST.shape[0], -1, 1),
-                            'Mag': Y_TEST[..., 3].reshape(Y_TEST.shape[0], -1, 1)},
+                           {'Mag': Y_TEST.reshape(Y_TEST.shape[0], -1, 3)},
                            ),
           epochs=30000, batch_size=4, callbacks=CBCK, verbose=1)
 print("Finished Training U")
 
+
 # Salvar rede para gerar arquivos depois
+# TODO: Implementar função para geração de dados adicionais
 # mesma pasta TensorBoard
 print('Salvando modelo da rede')
 SAVE_FOLDER = BASE_DIR

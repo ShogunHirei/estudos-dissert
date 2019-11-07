@@ -171,6 +171,35 @@ class TrainingData:
         return SCALER_DICT
 
 
+    def wall_data(self, XZ_DATA):
+        """
+            File: auxiliar_functions.py
+            Function Name: wall_data
+            Summary: Extrair dados do slice
+            Description: Criar dados para a inserção na função zero_wall_mag
+        """
+        wall = []
+        # Vetor A corresponde a diferença dos pontos entre o meio e extremo
+        # para selecionar os pontos da parede
+        # PNT1: (med1, med2) centro
+        # PNT2: (max1, med2) extremo no eixo 1 e centro no eixo2
+        A = np.array([np.mean(XZ_DATA[:, 0]) - np.max(XZ_DATA[:, 1]), 0])
+        for pnt in XZ_DATA:
+            # Vetor B, vetor do ponto analisado
+            B = np.array(pnt) - np.array([np.mean(XZ_DATA[:, 0], axis=0),
+                                          np.mean(XZ_DATA[:, 1])])
+            B_mag = np.sqrt(np.sum(np.square(B)))
+            A_mag = np.sqrt(np.sum(np.square(A)))
+            if B_mag >= A_mag*0.99:  # 0.99 correção para pnts na parede
+                tmp = [p for p in pnt]
+                tmp.append(1)
+                wall.append(np.array(tmp))
+            else:
+                wall.append(np.array([0, 0, 0]))
+        wall = np.array(wall).reshape(-1, 3)
+        return wall
+
+
 def rec_function(dic, logfile):
     """
     Author: ShogunHirei
@@ -213,7 +242,7 @@ def mag_diff_loss(y_pred, y_true):
     return K.mean(K.square(y_pred - y_true), axis=-1) + K.abs(M_p - M_t)
 
 
-def zero_wall_mag(y_pred, y_true, wall_val, xz_dict):
+def zero_wall_mag(y_pred, y_true, wall_val):
     """
         File: mag_isolated_prediction.py
         Function Name: mag_loss
@@ -227,15 +256,23 @@ def zero_wall_mag(y_pred, y_true, wall_val, xz_dict):
         XZ --> dados mapeados com os pontos cartesianos
                 (considerado plano cilíndrico, uma amostra)
     """
-    # Magnitude dos valores reais
+    #    # Magnitude dos valores reais
     M_t = K.sqrt(K.sum(K.square(y_true), axis=-1))
     # Magnitude dos valores previstos
     M_p = K.sqrt(K.sum(K.square(y_pred), axis=-1))
-    for indx, xz in enumerate(xz_dict):
-        if xz_dict[indx] == wall_val[indx]:
-            # y_pred[indx] = tf.zeros(3)
-            tf.Session().run(tf.assign(y_pred[indx], tf.zeros(3)))
-    return K.mean(K.square(y_pred - y_true), axis=-1) + K.abs(M_p - M_t)
+
+    # Mudar pontos da parede em Booleano, para transformar em binários
+    # inverter o ponto binários, para que os pontos na parede seja iguais a 0
+    # e os outros pontos iguais a 1, para multiplicar pelo tensor de vel
+    wall_val = tf.cast(wall_val, dtype=tf.bool)
+    wall_val = tf.expand_dims((tf.cast(wall_val, dtype=tf.float32) - 1) * -1,
+                              axis=0)  # shape (1, 862, 3)
+    tmp_tens = y_pred * wall_val
+    # Tecnicamente 'tmp_tens'
+    print(tmp_tens.get_shape())
+    PNTY = K.mean(K.square(y_pred - tmp_tens), axis=-1)
+
+    return K.mean(K.square(y_pred - y_true), axis=-1) + K.abs(M_p - M_t) + PNTY
 
 
 # Classe para escrever dados de maneira organizada
