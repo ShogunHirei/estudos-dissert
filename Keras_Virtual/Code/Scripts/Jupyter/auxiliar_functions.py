@@ -13,6 +13,8 @@ from pandas import read_csv, concat, DataFrame
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import MinMaxScaler
 from keras import backend as K
+from keras.models import Sequential, Model
+from keras.layers import Dense
 import tensorflow as tf
 
 
@@ -170,6 +172,220 @@ class TrainingData:
 
         return SCALER_DICT
 
+    def wall_data(self, XZ_DATA):
+        """
+            File: auxiliar_functions.py
+            Function Name: wall_data
+            Summary: Extrair dados do slice
+            Description: Criar dados para a inserção na função zero_wall_mag
+        """
+        wall = []
+        # Vetor A corresponde a diferença dos pontos entre o meio e extremo
+        # para selecionar os pontos da parede
+        # PNT1: (med1, med2) centro
+        # PNT2: (max1, med2) extremo no eixo 1 e centro no eixo2
+        A = np.array([np.mean(XZ_DATA[:, 0]) - np.max(XZ_DATA[:, 1]), 0])
+        for pnt in XZ_DATA:
+            # Vetor B, vetor do ponto analisado
+            B = np.array(pnt) - np.array([np.mean(XZ_DATA[:, 0], axis=0),
+                                          np.mean(XZ_DATA[:, 1])])
+            B_mag = np.sqrt(np.sum(np.square(B)))
+            A_mag = np.sqrt(np.sum(np.square(A)))
+            if B_mag >= A_mag*0.99:  # 0.99 correção para pnts na parede
+                tmp = [p for p in pnt]
+                tmp.append(1)
+                wall.append(np.array(tmp))
+            else:
+                wall.append(np.array([0, 0, 0]))
+        wall = np.array(wall).reshape(-1, 3)
+        return wall
+
+    def organized_data(self, data):
+        """
+            File: auxiliar_functions.py
+            Function Name: organized_data
+            Summary: Extrair dados de forma organizada
+            Description: Usa a magnitude de um vetor da origem à extremidade
+                         e guarda os dados que estão em mesma condição (círculo)
+                         manda para uma lista
+        """
+        # TODO: FALTA CONSERTAR MAGNITUDE PARA QUADRADO NO MEIO
+        # NOTE: Adicionar etapa de verificação de dados, 'np.intersect1d'
+        xz = np.concatenate((data, np.zeros((len(data), 1))), axis=1)
+        # função de magnitude 'atalho'
+        mag = lambda x: np.sqrt(np.sum(np.square(x)))
+
+        # Vetor A de referência
+        A = np.array([np.max(xz[:, 0]), np.mean(xz[:, 1]), 0]) - np.mean(xz, axis=0)
+        arm2 = []
+        MEAN_ORIG = np.mean(xz, axis=0)
+        while mag(A) > 0.1455:
+            arm1 = []
+            for pnt in xz:
+                # vetor B de comparação com A
+                B = pnt - MEAN_ORIG
+                if mag(B) >= 0.97 * mag(A):
+                    # Adicionado um item a mais por causa do vetor velocidade
+                    arm1.append([p for p in pnt])
+                else:
+                    # para manter as mesmas dimensões do mapeamento dos pontos '(868, 3)'
+                    arm1.append([0, 0, 0])
+            arm1 = np.array([np.array(p) for p in arm1])
+            # Interseção dos dados no extremo e dados XZ, indices
+            inter = np.intersect1d(xz[:, 0], arm1[:,0], return_indices=True)[1]
+            # Para manter a dimensão dos arrays, mascarar dados com 0
+            mask = np.ones(xz.shape, dtype=bool)
+            # Mudando valores que identificados para 0
+            mask[list(inter)] = 0
+            NEW_XZ = xz * mask
+
+            xz = NEW_XZ
+            A = np.array([MEAN_ORIG[0], np.max(xz[:, 1:]), 0]) - MEAN_ORIG
+            arm2.append(arm1)
+
+
+    def data_prediction(self, MODEL, DATA_MAP, VEL=10):
+        """
+            File: auxiliar_functions.py
+            Function Name: data_prediction
+            Summary: Gravar dados preditos
+            Description: Inserir mapeamento e velocidade de entrada para
+                         a previsão dos dados.
+        """
+        scalers = self.return_scaler(load_sc=True)
+        VEL_ARR = np.array([[VEL]*DATA_MAP.shape[-2]]).reshape(-1, 1)
+        VEL_ARR = scalers['U_in'].transform(VEL_ARR).reshape(1, -1, 1)
+
+        # TODO: Verificar a dimensão dos dados de predição
+        #       Devido à futura inserção de novas variáveis
+        PREDICs = MODEL.predict({'XZ_input': DATA_MAP, 'U_entr': VEL_ARR})
+
+        # Retornando os dados para a escala anterior
+        U_xyz = [scalers['Ux_scaler'].inverse_transform(PREDICs[..., 0]).reshape(-1),
+                 scalers['Uy_scaler'].inverse_transform(PREDICs[..., 1]).reshape(-1),
+                 scalers['Uz_scaler'].inverse_transform(PREDICs[..., 2]).reshape(-1)]
+
+        # Transformando em DataFrames do panda para facilitar manipulação
+        U_xyz = [DataFrame(dt, columns=f'U:{i}') for i, dt in enumerate(U_xyz)]
+
+        # Dado Original de Velocidade
+        ORIGIN_DATA = read_csv(self.data_folder+'SLICE_DATA_U_10_0.csv')
+
+        # Coordenadas
+        XYZ = ORIGIN_DATA[['Points:0', 'Points:1', 'Points:2']]
+
+        # Geração de arquivo .CSV para leitura
+        FILENAME = f'NEW_SLICE_10_Isolated.csv'
+
+        SLICE_DATA = concat(U_xyz + XYZ, sort=True, axis=1)
+
+        # Escrevendo o header no formato do paraview
+        with open(self.scaler_dir+FILENAME, 'w') as filename:
+            HEADER = ''
+            for col in list(SLICE_DATA.columns):
+                HEADER += '\"' + col + '\",'
+            filename.write(HEADER[:-1])
+            filename.write('\n')
+
+        SLICE_DATA.to_csv(self.scaler_dir + FILENAME, index=False, header=False, mode='a')
+        print("Dados de previsão copiados!")
+
+        # Diferença do valor previsto e o caso original
+        print("Calculando diferença...")
+
+        DIFF = SLICE_DATA[['U:0', 'U:1', 'U:2']] - ORIGIN_DATA[['U:0', 'U:1', 'U:2']]
+
+        RESULT_DATA = concat([DIFF, XYZ], axis=1)
+
+        print('Escrevendo dados DIFERENÇA')
+        RESULT_DATA.to_csv(self.scaler_dir + 'DIFF_SLICE_U_10.csv', index=False)
+        print('Dados de diferença copiados!')
+
+        return None
+
+
+
+
+class NeuralTopology:
+    """
+    Classe para reduzir código, automatizar criação de estrutura de rede
+    Atributos:
+        --> DISTRIBUITION = 'autoencoder'
+        --> INICIAL_LAYER = 64
+        --> ACTIVATION = 'tanh'
+    """
+    DISTRIBUTION = 'autoenconder'
+    ACTIVATION = 'tanh'
+
+    def __init__(self, MODEL=Sequential(), lyr_type=Dense, num_lyrs=5,
+                 init_lyr=64):
+        self.model = MODEL
+        self.type = lyr_type
+        self.num_lyrs = num_lyrs
+        self.layer0 = init_lyr
+        if type(self.model) == type(Sequential()):
+            self.DISTRIBUTION = 'linear'
+
+    def create_sequential(self, inputs=(1,), outputs=1):
+        """
+            File: auxiliar_functions.py
+            Function Name: create_sequential
+            Summary: Criar rede simples
+            Description: Criar modelo Sequential simples de acordo com os
+                         parametros da classe.
+        """
+
+        self.model.add(self.type(self.layer0, input_shape=inputs,
+                                 activation=self.ACTIVATION))
+
+        num_neurons = self.layer0
+        # Adicionando rede do tipo autoencoder
+        if self.DISTRIBUTION == 'autoencoder':
+            for layer in range(self.num_lyrs):
+                # Reduzindo numeros de neuronios até cerca da metade
+                if layer <= self.num_lyrs/2:
+                    num_neurons = num_neurons/2 if num_neurons % 2 == 0 else (num_neurons+1)/2
+                    num_neurons = int(num_neurons)
+                else:
+                    num_neurons *= 2
+                # Adicionando camadas na rede
+                self.model.add(self.type(num_neurons, activation=self.ACTIVATION))
+
+            # Adicionando camada final antes do output, igual a primeira
+            self.model.add(self.type(self.layer0, activation=self.ACTIVATION))
+        elif self.DISTRIBUTION == 'linear':
+            # Adicionando camadas com mesmo número de neuronios
+            for layer in range(self.num_lyrs):
+                self.model.add(self.type(num_neurons, activation=self.ACTIVATION))
+        # Camada do output
+        self.model.add(self.type(outputs, activation=self.ACTIVATION))
+
+        return self.model
+
+
+    def add_net_layers(self, qnt_layer=5, activation=['tanh'], dropout=0.0):
+        """
+            File: auxiliar_functions.py
+            Function Name: add_net_layers
+            Summary: Adicionar camadas em modelo
+            Description: Para um modelo 'model' adicionar uma quantidade de
+                         especificadas de camadas para determinadas
+        """
+
+    def set_result(self, filename):
+        """
+            File: auxiliar_functions.py
+            Function Name: set_result
+            Summary: Escrever topologia da rede
+            Description: Usar a função recursiva para persistir a configuração
+                         da rede.
+        """
+        with open(filename, 'w') as fn:
+            rec_function(self.model.get_config(), fn)
+        print('Done!')
+        return None
+
+
 
 def rec_function(dic, logfile):
     """
@@ -183,9 +399,10 @@ def rec_function(dic, logfile):
             if type(dic[p]) == str:
                 string = ''
                 if len(re.findall('name', p)) >= 1:
-                    if 'units' in dic.keys():
-                        string += str(p) + ' ' + str(dic[p])
-                        string += ' ' + str(dic['units'])
+                    if 'units' in dic.keys() or 'activation' in dic.keys():
+                        string += ' '.join([str(p),  str(dic[p]),
+                                            str(dic['units']),
+                                            str(dic['activation'])])
                         logfile.write(string+'\n')
             elif type(dic[p]) == dict:
                 rec_function(dic[p], logfile)
@@ -213,7 +430,7 @@ def mag_diff_loss(y_pred, y_true):
     return K.mean(K.square(y_pred - y_true), axis=-1) + K.abs(M_p - M_t)
 
 
-def zero_wall_mag(y_pred, y_true, wall_val, xz_dict):
+def zero_wall_mag(y_pred, y_true, wall_val):
     """
         File: mag_isolated_prediction.py
         Function Name: mag_loss
@@ -227,15 +444,23 @@ def zero_wall_mag(y_pred, y_true, wall_val, xz_dict):
         XZ --> dados mapeados com os pontos cartesianos
                 (considerado plano cilíndrico, uma amostra)
     """
-    # Magnitude dos valores reais
+    #    # Magnitude dos valores reais
     M_t = K.sqrt(K.sum(K.square(y_true), axis=-1))
     # Magnitude dos valores previstos
     M_p = K.sqrt(K.sum(K.square(y_pred), axis=-1))
-    for indx, xz in enumerate(xz_dict):
-        if xz_dict[indx] == wall_val[indx]:
-            y_pred[indx] = tf.zeros(3)
-            tf.Session().run(y_pred.eval())
-    return K.mean(K.square(y_pred - y_true), axis=-1) + K.abs(M_p - M_t)
+
+    # Mudar pontos da parede em Booleano, para transformar em binários
+    # inverter o ponto binários, para que os pontos na parede seja iguais a 0
+    # e os outros pontos iguais a 1, para multiplicar pelo tensor de vel
+    wall_val = tf.cast(wall_val, dtype=tf.bool)
+    wall_val = tf.expand_dims((tf.cast(wall_val, dtype=tf.float32) - 1) * -1,
+                              axis=0)  # shape (1, 862, 3)
+    tmp_tens = y_pred * wall_val
+    # Tecnicamente 'tmp_tens'
+    print(tmp_tens.get_shape())
+    PNTY = K.mean(K.square(y_pred - tmp_tens), axis=-1)
+
+    return K.mean(K.square(y_pred - y_true), axis=-1) + K.abs(M_p - M_t) + PNTY
 
 
 # Classe para escrever dados de maneira organizada
