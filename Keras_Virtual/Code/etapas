@@ -12,3 +12,15 @@ Problemas
         Acoplado: Trenar Vxyz e Div V
         Verificar Parede (clip)
 
+
+Para extrair o divergente dos centros das células use "postProcess -func div(phi) -latestTime"
+Nesse caso faz-se necessário determinar quais são os pontos e os centros aos quais se referem
+    o divergente calculado
+Salve os dados dos pontos do filtro "Cell Centers" em .csv 
+    Leia esse arquivo com o Pandas read_csv
+    Para determinar os "slices-like" pontos dos centros das células da malha 
+        lembrar de Y2[Y2['Points:1'] < 0.99 * Y2['Points:1'].min()]
+        Serão necessárias criação de limites superiores e inferiores para a inclusão
+            de todos os pontos em uma "faixa" específica de Y.
+
+-> próxima parte (08/12) domingo: fazer função de U_mag

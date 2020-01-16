@@ -1,0 +1,360 @@
+!_TAG_FILE_FORMAT	2	/extended format; --format=1 will not append ;" to lines/
+!_TAG_FILE_SORTED	1	/0=unsorted, 1=sorted, 2=foldcase/
+!_TAG_PROGRAM_AUTHOR	Darren Hiebert	/dhiebert@users.sourceforge.net/
+!_TAG_PROGRAM_NAME	Exuberant Ctags	//
+!_TAG_PROGRAM_URL	http://ctags.sourceforge.net	/official site/
+!_TAG_PROGRAM_VERSION	5.9~svn20110310	//
+ACTIVATION	Scripts/Jupyter/auxiliar_functions.py	/^    ACTIVATION = 'tanh'$/;"	v	class:NeuralTopology
+ACTIVATION	Scripts/auxiliar_functions.py	/^    ACTIVATION = 'tanh'$/;"	v	class:NeuralTopology
+ANN_FOLDER	ciclone_ANN_old.py	/^ANN_FOLDER = sys.argv[1]$/;"	v
+ANN_FOLDER	isolated_prediction.py	/^ANN_FOLDER = sys.argv[1]$/;"	v
+ANN_FOLDER	mag_isolated_prediction.py	/^ANN_FOLDER = sys.argv[1]$/;"	v
+ANN_FOLDER	zero_wall_loss.py	/^ANN_FOLDER = sys.argv[1]$/;"	v
+BASE_DIR	isolated_prediction.py	/^BASE_DIR = FOLDER + NOW.strftime("%Y%m%d-%H%M%S") + '\/'$/;"	v
+BASE_DIR	mag_isolated_prediction.py	/^BASE_DIR = '.\/Models\/Multi_Input\/AutoEncoder\/' + NOW.strftime("%Y%m%d-%H%M%S") + '\/'$/;"	v
+BASE_DIR	zero_wall_loss.py	/^BASE_DIR = '.\/Models\/Multi_Input\/AutoEncoder\/' + NOW.strftime("%Y%m%d-%H%M%S") + '\/'$/;"	v
+BODY	Scripts/cell_centers_clip.py	/^BODY = OpenFOAMReader(FileName=FOAM_FILE)$/;"	v
+BODY	Scripts/slice_extraction.py	/^BODY = OpenFOAMReader(FileName=FOAM_FILE)$/;"	v
+CALLBACK	keras_cavity_MLP.py	/^CALLBACK = [EarlyStopping(monitor='loss', min_delta=0, patience=150,$/;"	v
+CAM	Scripts/cell_centers_clip.py	/^CAM = GetActiveView()$/;"	v
+CAM	Scripts/slice_extraction.py	/^CAM = GetActiveView()$/;"	v
+CAVITY_FOLDER_REMOTE	keras_cavity_MLP.py	/^CAVITY_FOLDER_REMOTE = r'..\/Cavity_Neural_Networks\/'$/;"	v
+CBCK	Multiple_Input Network.py	/^CBCK = TensorBoard(log_dir='..\/Virtual\/estudos-dissert\/Keras_Virtual\/Code\/Models\/MLP\/logs\/jupyter_Multi_input\/')$/;"	v
+CBCK	Scripts/training_restart.py	/^CBCK = [TB, ES, RLRP]$/;"	v
+CBCK	ciclone_ANN_old.py	/^CBCK = [TB, ES, RLRP]$/;"	v
+CBCK	isolated_prediction.py	/^CBCK = [TB, ES, RLRP]$/;"	v
+CBCK	mag_isolated_prediction.py	/^CBCK = [TB, ES, RLRP ]$/;"	v
+CBCK	zero_wall_loss.py	/^CBCK = [TB, ES, RLRP]$/;"	v
+CC	Scripts/cell_centers_clip.py	/^CC = CellCenters()$/;"	v
+CP1	Scripts/cell_centers_clip.py	/^CP1 = Clip(Input=CC)$/;"	v
+CP2	Scripts/cell_centers_clip.py	/^CP2 = Clip(Input=CP1)$/;"	v
+Conc1	Multiple_Input Network.py	/^Conc1 = concatenate([XY_output, NU_out])$/;"	v
+Conc1	ciclone_ANN_old.py	/^Conc1 = concatenate([XZ_out, U_out])$/;"	v
+Conc1	isolated_prediction.py	/^Conc1 = concatenate([XZ_out, U_out])$/;"	v
+Conc1	mag_isolated_prediction.py	/^Conc1 = concatenate([XZ_out, U_out])$/;"	v
+Conc1	zero_wall_loss.py	/^Conc1 = concatenate([XZ_out, U_out])$/;"	v
+DATA	Multiple_Input Network.py	/^DATA = list(zip(*[X, Y, NU]))$/;"	v
+DATA	Multiple_Input Network.py	/^DATA = np.array(DATA).reshape(11, -1, 3)$/;"	v
+DATA	Scripts/training_restart.py	/^DATA = TrainingData(U_mag=U_MAG, scaler_dir=SCALER_DIR)$/;"	v
+DATA	ciclone_ANN_old.py	/^DATA = TrainingData(ANN_FOLDER)  # Usando MinMaxScaler$/;"	v
+DATA	isolated_prediction.py	/^DATA = TrainingData(ANN_FOLDER)  # Usando MinMaxScaler$/;"	v
+DATA	mag_isolated_prediction.py	/^DATA = TrainingData(ANN_FOLDER, scaler_dir=BASE_DIR)$/;"	v
+DATA	zero_wall_loss.py	/^DATA = TrainingData(ANN_FOLDER, scaler_dir=BASE_DIR)$/;"	v
+DATA_ARRAY	keras_cavity_MLP.py	/^DATA_ARRAY = []$/;"	v
+DATA_ARRAY	keras_cavity_MLP.py	/^DATA_ARRAY = np.array(DATA_ARRAY)$/;"	v
+DIFF	isolated_prediction.py	/^DIFF = SLICE_DATA[['U:0', 'U:1', 'U:2']] - ORIGIN_DATA[['U:0', 'U:1', 'U:2']]$/;"	v
+DIFF	mag_isolated_prediction.py	/^DIFF = SLICE_DATA[['U:0', 'U:1', 'U:2']] - ORIGIN_DATA[['U:0', 'U:1', 'U:2']]$/;"	v
+DIFF	zero_wall_loss.py	/^DIFF = SLICE_DATA[['U:0', 'U:1', 'U:2']] - ORIGIN_DATA[['U:0', 'U:1', 'U:2']]$/;"	v
+DISTRIBUTION	Scripts/Jupyter/auxiliar_functions.py	/^    DISTRIBUTION = 'autoenconder'$/;"	v	class:NeuralTopology
+DISTRIBUTION	Scripts/auxiliar_functions.py	/^    DISTRIBUTION = 'autoenconder'$/;"	v	class:NeuralTopology
+ES	Scripts/training_restart.py	/^ES = EarlyStopping(monitor='loss', min_delta=1E-5, patience=350,$/;"	v
+ES	ciclone_ANN_old.py	/^ES = EarlyStopping(monitor='val_acc', min_delta=0.00001, patience=175,$/;"	v
+ES	isolated_prediction.py	/^ES = EarlyStopping(monitor='loss', min_delta=0.00001, patience=175,$/;"	v
+ES	mag_isolated_prediction.py	/^ES = EarlyStopping(monitor='val_loss', min_delta=0.00001, patience=175,$/;"	v
+ES	zero_wall_loss.py	/^ES = EarlyStopping(monitor='val_loss', min_delta=0.00001, patience=175,$/;"	v
+FILENAME	Scripts/slice_extraction.py	/^FILENAME = 'SLICE_DATA_U_'+VEL + '_.csv'$/;"	v
+FILENAME	isolated_prediction.py	/^FILENAME = f'NEW_SLICE_10_Isolated.csv'$/;"	v
+FILENAME	mag_isolated_prediction.py	/^FILENAME = f'NEW_SLICE_10_Isolated.csv'$/;"	v
+FILENAME	zero_wall_loss.py	/^FILENAME = f'NEW_SLICE_10_Isolated.csv'$/;"	v
+FOAM_FILE	Scripts/cell_centers_clip.py	/^FOAM_FILE = sys.argv[1]$/;"	v
+FOAM_FILE	Scripts/slice_extraction.py	/^FOAM_FILE = sys.argv[1]$/;"	v
+FOAM_RUN	Scripts/slice_extraction.py	/^FOAM_RUN = os.getenv('FOAM_RUN')$/;"	v
+FOLDER	Scripts/velocity_alteration.py	/^FOLDER = sys.argv[1]$/;"	v
+FOLDER	ciclone_ANN_old.py	/^FOLDER = '.\/Models\/Multi_Input\/AutoEncoder\/'$/;"	v
+FOLDER	isolated_prediction.py	/^FOLDER = '.\/Models\/Multi_Input\/AutoEncoder\/'$/;"	v
+FieldAssociation	Scripts/cell_centers_clip.py	/^         FieldAssociation='Points')$/;"	v
+Final_U	Multiple_Input Network.py	/^Final_U = np.array(list(zip(*[norm_Ux[0], norm_Uy[0], [0]*400 ])))$/;"	v
+HEADER	isolated_prediction.py	/^    HEADER = ''$/;"	v
+HEADER	mag_isolated_prediction.py	/^    HEADER = ''$/;"	v
+HEADER	zero_wall_loss.py	/^    HEADER = ''$/;"	v
+LOGDIR	ciclone_ANN_old.py	/^LOGDIR = FOLDER + NOW.strftime("%Y%m%d-%H%M%S") + "\/"$/;"	v
+LOGDIR	keras_cavity_MLP.py	/^LOGDIR = NOW.strftime("%Y%m%d-%H%M%S") + "\/"$/;"	v
+MODEL	keras_cavity_MLP.py	/^MODEL = Sequential()$/;"	v
+MODEL_FN	Scripts/training_restart.py	/^MODEL_FN = sys.argv[1]$/;"	v
+N	keras_cavity_MLP.py	/^N = 0  # para fazer apenas os dois primeiros casos$/;"	v
+NET_CONFIG	ciclone_ANN_old.py	/^NET_CONFIG = model.get_config()$/;"	v
+NET_CONFIG	isolated_prediction.py	/^NET_CONFIG = model.get_config()$/;"	v
+NET_CONFIG	keras_cavity_MLP.py	/^NET_CONFIG = MODEL.get_config()$/;"	v
+NET_CONFIG	mag_isolated_prediction.py	/^NET_CONFIG = model.get_config()$/;"	v
+NET_CONFIG	zero_wall_loss.py	/^NET_CONFIG = model.get_config()$/;"	v
+NET_NAME	ciclone_ANN_old.py	/^NET_NAME = "CicloneNet_" + NOW.strftime("%Y%m%d-%H%M%S")$/;"	v
+NET_NAME	isolated_prediction.py	/^NET_NAME = "CicloneNet_" + NOW.strftime("%Y%m%d-%H%M%S")$/;"	v
+NET_NAME	keras_cavity_MLP.py	/^NET_NAME = ""$/;"	v
+NET_NAME	mag_isolated_prediction.py	/^NET_NAME = "CicloneNet_" + NOW.strftime("%Y%m%d-%H%M%S")$/;"	v
+NET_NAME	zero_wall_loss.py	/^NET_NAME = "CicloneNet_" + NOW.strftime("%Y%m%d-%H%M%S")$/;"	v
+NEW_ARRAY	keras_cavity_MLP.py	/^    NEW_ARRAY = np.append(NEW_ARRAY, NORM_LIST, axis=0)$/;"	v
+NEW_ARRAY	keras_cavity_MLP.py	/^NEW_ARRAY = NEW_ARRAY.reshape(DATA_ARRAY.shape)$/;"	v
+NEW_ARRAY	keras_cavity_MLP.py	/^NEW_ARRAY = np.array([])$/;"	v
+NEW_string	Scripts/velocity_alteration.py	/^                        NEW_string = f'        refValue        uniform -{VELOC_VALUE};'$/;"	v
+NN	keras_cavity_MLP.py	/^NN = [512, 256, 128, 64, 32]$/;"	v
+NORM_LIST	keras_cavity_MLP.py	/^        NORM_LIST = np.append(NORM_LIST, np.array([(num - XMED[col])\/R[col]]))$/;"	v
+NORM_LIST	keras_cavity_MLP.py	/^    NORM_LIST = np.array([])$/;"	v
+NOW	ciclone_ANN_old.py	/^NOW = datetime.now()$/;"	v
+NOW	isolated_prediction.py	/^NOW = datetime.now()$/;"	v
+NOW	keras_cavity_MLP.py	/^NOW = datetime.now()$/;"	v
+NOW	mag_isolated_prediction.py	/^NOW = datetime.now()$/;"	v
+NOW	zero_wall_loss.py	/^NOW = datetime.now()$/;"	v
+NU	Multiple_Input Network.py	/^NU = NU.reshape(11, -1)$/;"	v
+NU	Multiple_Input Network.py	/^NU = df['NU']$/;"	v
+NU	Multiple_Input Network.py	/^NU = np.array(NU).reshape(11, -1, 1)  # Para ficar em 3D$/;"	v
+NU	keras_cavity_MLP.py	/^NU = {}$/;"	v
+NU_XY_scaled	Multiple_Input Network.py	/^NU_XY_scaled = np.concatenate((NU_scaled, scaled_XY), axis=2)$/;"	v
+NU_aux_input	Multiple_Input Network.py	/^NU_aux_input = Input(shape=(400,1), dtype="float32", name="NU_input")$/;"	v
+NU_out	Multiple_Input Network.py	/^NU_out = Dense(256, activation=None)(NU_aux_input)$/;"	v
+NU_scaled	Multiple_Input Network.py	/^NU_scaled = NU_scaler.transform(NU).reshape(11, -1, 1)$/;"	v
+NU_scaler	Multiple_Input Network.py	/^NU_scaler = StandardScaler().fit(NU)$/;"	v
+NeuralTopology	Scripts/Jupyter/auxiliar_functions.py	/^class NeuralTopology:$/;"	c
+NeuralTopology	Scripts/auxiliar_functions.py	/^class NeuralTopology:$/;"	c
+OLD_string	Scripts/velocity_alteration.py	/^                        OLD_string = f'        refValue        uniform {old_value};'$/;"	v
+ORIGIN_DATA	isolated_prediction.py	/^ORIGIN_DATA = read_csv(ANN_FOLDER+'SLICE_DATA_U_10_0.csv')$/;"	v
+ORIGIN_DATA	mag_isolated_prediction.py	/^ORIGIN_DATA = read_csv(ANN_FOLDER+'SLICE_DATA_U_10_0.csv')$/;"	v
+ORIGIN_DATA	zero_wall_loss.py	/^ORIGIN_DATA = read_csv(ANN_FOLDER+'SLICE_DATA_U_10_0.csv')$/;"	v
+Out_U_mag	mag_isolated_prediction.py	/^Out_U_mag = Dense(1, activation='tanh', name='Mag')(x)$/;"	v
+Out_U_mag	zero_wall_loss.py	/^Out_U_mag = Dense(3, activation='tanh', name='Mag')(x)$/;"	v
+Out_Ux	isolated_prediction.py	/^Out_Ux = Dense(1, activation=None, name='Ux_Output')(x)$/;"	v
+Out_Ux	mag_isolated_prediction.py	/^Out_Ux = Dense(1, activation='tanh', name='Ux_Output')(x)$/;"	v
+Out_Uy	isolated_prediction.py	/^Out_Uy = Dense(1, activation='tanh', name='Uy_Output')(x)$/;"	v
+Out_Uy	mag_isolated_prediction.py	/^Out_Uy = Dense(1, activation='tanh', name='Uy_Output')(x)$/;"	v
+Out_Uz	isolated_prediction.py	/^Out_Uz = Dense(1, activation='tanh', name='Uz_Output')(x)$/;"	v
+Out_Uz	mag_isolated_prediction.py	/^Out_Uz = Dense(1, activation='tanh', name='Uz_Output')(x)$/;"	v
+Output_layer	Multiple_Input Network.py	/^Output_layer = Dense(2, activation=None, name='Ux_Output')(x)$/;"	v
+Output_layer	ciclone_ANN_old.py	/^Output_layer = Dense(3, activation='sigmoid', name='Uxyz_Output')(x)$/;"	v
+PA	Scripts/cell_centers_clip.py	/^PA = PassArrays(Input=CP2)$/;"	v
+PA	Scripts/slice_extraction.py	/^PA = PassArrays(PDCD)$/;"	v
+PATH	Scripts/slice_extraction.py	/^PATH = FOAM_RUN + '\/..\/Ciclone\/ANN_DATA\/'$/;"	v
+PDCD	Scripts/slice_extraction.py	/^PDCD = PointDatatoCellData()$/;"	v
+PREDICs	isolated_prediction.py	/^PREDICs = model.predict({'XZ_input': scaled_XZ[0].reshape(1, -1, 2), 'U_entr': VEL_ARR})$/;"	v
+PREDICs	mag_isolated_prediction.py	/^PREDICs = model.predict({'XZ_input': X_TRAIN[..., :2][0].reshape(1, -1, 2), 'U_entr': VEL_ARR})$/;"	v
+PREDICs	zero_wall_loss.py	/^PREDICs = model.predict({'XZ_input': X_TRAIN[..., :2][0].reshape(1, -1, 2), 'U_entr': VEL_ARR})$/;"	v
+R	keras_cavity_MLP.py	/^R = [max([XMAX[p] - XMED[p], XMED[p] - XMIN[p]]) for p, _ in enumerate(XMAX)]$/;"	v
+RESULT_DATA	isolated_prediction.py	/^RESULT_DATA = concat([DIFF, XYZ], axis=1)$/;"	v
+RESULT_DATA	mag_isolated_prediction.py	/^RESULT_DATA = concat([DIFF, XYZ], axis=1)$/;"	v
+RESULT_DATA	zero_wall_loss.py	/^RESULT_DATA = concat([DIFF, XYZ], axis=1)$/;"	v
+RLRP	Scripts/training_restart.py	/^RLRP = ReduceLROnPlateau(monitor='loss', factor=0.7, patience=100, verbose=1,$/;"	v
+RLRP	ciclone_ANN_old.py	/^RLRP = ReduceLROnPlateau(monitor='val_loss', factor=0.1, patience=30, verbose=1,$/;"	v
+RLRP	isolated_prediction.py	/^RLRP = ReduceLROnPlateau(monitor='val_loss', factor=0.3, patience=30, verbose=1,$/;"	v
+RLRP	mag_isolated_prediction.py	/^RLRP = ReduceLROnPlateau(monitor='val_loss', factor=0.1, patience=70, verbose=1,$/;"	v
+RLRP	zero_wall_loss.py	/^RLRP = ReduceLROnPlateau(monitor='val_loss', factor=0.1, patience=70, verbose=1,$/;"	v
+SAVE_DIR	Scripts/cell_centers_clip.py	/^SAVE_DIR = sys.argv[3]$/;"	v
+SAVE_FOLDER	ciclone_ANN_old.py	/^SAVE_FOLDER = LOGDIR$/;"	v
+SAVE_FOLDER	isolated_prediction.py	/^SAVE_FOLDER = BASE_DIR$/;"	v
+SAVE_FOLDER	mag_isolated_prediction.py	/^SAVE_FOLDER = BASE_DIR$/;"	v
+SAVE_FOLDER	zero_wall_loss.py	/^SAVE_FOLDER = BASE_DIR$/;"	v
+SCALER_DIR	Scripts/training_restart.py	/^SCALER_DIR = sys.argv[2]$/;"	v
+SL	Scripts/slice_extraction.py	/^SL = Slice()$/;"	v
+SLICE_DATA	isolated_prediction.py	/^SLICE_DATA = concat([Ux, Uy, Uz, XYZ], sort=True, axis=1)$/;"	v
+SLICE_DATA	mag_isolated_prediction.py	/^SLICE_DATA = concat([Ux, Uy, Uz, XYZ], sort=True, axis=1)$/;"	v
+SLICE_DATA	zero_wall_loss.py	/^SLICE_DATA = concat([Ux, Uy, Uz, XYZ], sort=True, axis=1)$/;"	v
+TB	Scripts/training_restart.py	/^TB = Tensorboard(logdir='.\/', histogram_freq=90)$/;"	v
+TB	ciclone_ANN_old.py	/^TB = TensorBoard(log_dir=LOGDIR, histogram_freq=30, write_grads=False,$/;"	v
+TB	isolated_prediction.py	/^TB = TensorBoard(log_dir=BASE_DIR, histogram_freq=90, write_grads=True,$/;"	v
+TB	mag_isolated_prediction.py	/^TB = TensorBoard(log_dir=BASE_DIR, histogram_freq=100, write_grads=False,$/;"	v
+TB	zero_wall_loss.py	/^TB = TensorBoard(log_dir=BASE_DIR, histogram_freq=100, write_grads=False,$/;"	v
+TIME	keras_cavity_MLP.py	/^TIME = {}$/;"	v
+TIME_FILE_PATH	keras_cavity_MLP.py	/^    TIME_FILE_PATH = max([$/;"	v
+TIME_FOLDERS	Scripts/velocity_alteration.py	/^TIME_FOLDERS = []$/;"	v
+TRANSPORT_FILE_PATH	keras_cavity_MLP.py	/^    TRANSPORT_FILE_PATH = sample.path + r'\/constant\/transportProperties'$/;"	v
+TYPE	keras_cavity_MLP.py	/^    TYPE = layer['class_name'][:3]$/;"	v
+TrainingData	Scripts/Jupyter/auxiliar_functions.py	/^class TrainingData:$/;"	c
+TrainingData	Scripts/auxiliar_functions.py	/^class TrainingData:$/;"	c
+UNITS	keras_cavity_MLP.py	/^    UNITS = layer['config']['units']$/;"	v
+U_PATH	Scripts/velocity_alteration.py	/^            U_PATH = prop.path$/;"	v
+U_POSIX	keras_cavity_MLP.py	/^                    U_POSIX = 0$/;"	v
+U_POSIX	keras_cavity_MLP.py	/^        U_POSIX = 0$/;"	v
+U_POSIY	keras_cavity_MLP.py	/^        U_POSIY = 0$/;"	v
+U_VALUES	keras_cavity_MLP.py	/^        U_VALUES = []$/;"	v
+U_entr	ciclone_ANN_old.py	/^U_entr = Input(shape=(X_TRAIN.shape[1], 1),$/;"	v
+U_entr	isolated_prediction.py	/^U_entr = Input($/;"	v
+U_entr	mag_isolated_prediction.py	/^U_entr = Input($/;"	v
+U_entr	zero_wall_loss.py	/^U_entr = Input($/;"	v
+U_mag	mag_isolated_prediction.py	/^                                                 U_mag=True,$/;"	v
+U_mag_data_gen	Scripts/Jupyter/auxiliar_functions.py	/^    def U_mag_data_gen(self, U_xyz, scaler_ld_sv=[0, 0]):$/;"	m	class:TrainingData
+U_mag_data_gen	Scripts/auxiliar_functions.py	/^    def U_mag_data_gen(self, U_xyz, scaler_ld_sv=[0, 0]):$/;"	m	class:TrainingData
+U_out	ciclone_ANN_old.py	/^U_out = Dense(512, activation=None)(U_entr)$/;"	v
+U_out	isolated_prediction.py	/^U_out = Dense(256, activation=None)(U_entr)$/;"	v
+U_out	mag_isolated_prediction.py	/^U_out = Dense(128, activation='tanh')(U_entr)$/;"	v
+U_out	zero_wall_loss.py	/^U_out = Dense(128, activation='tanh')(U_entr)$/;"	v
+U_value	keras_cavity_MLP.py	/^                U_value = (U_POSIX, U_POSIY, line.split(' ')[0].strip('('),$/;"	v
+U_value	keras_cavity_MLP.py	/^                U_value = tuple([float(num) for num in U_value])$/;"	v
+U_xy_scaled	Multiple_Input Network.py	/^U_xy_scaled = np.concatenate((scaled_Ux, scaled_Uy), axis=2)$/;"	v
+Ux	Multiple_Input Network.py	/^Ux = np.array(Ux).reshape(11,-1)$/;"	v
+Ux	isolated_prediction.py	/^Ux = DataFrame(Ux_scaler.inverse_transform(PREDICs[0][..., 0]).reshape(-1), columns=['U:0'])$/;"	v
+Ux	mag_isolated_prediction.py	/^Ux = DataFrame(scaler_dict['Ux_scaler'].inverse_transform(PREDICs[..., 0]).reshape(-1), columns=['U:0'])$/;"	v
+Ux	zero_wall_loss.py	/^Ux = DataFrame(scaler_dict['Ux_scaler'].inverse_transform(PREDICs[..., 0]).reshape(-1), columns=['U:0'])$/;"	v
+Ux_scaler	Multiple_Input Network.py	/^Ux_scaler = StandardScaler().fit(Ux)$/;"	v
+Uy	Multiple_Input Network.py	/^Uy = np.array(Uy).reshape(11,-1)$/;"	v
+Uy	isolated_prediction.py	/^Uy = DataFrame(Uy_scaler.inverse_transform(PREDICs[1][..., 0]).reshape(-1), columns=['U:1'])$/;"	v
+Uy	mag_isolated_prediction.py	/^Uy = DataFrame(scaler_dict['Uy_scaler'].inverse_transform(PREDICs[..., 1]).reshape(-1), columns=['U:1'])$/;"	v
+Uy	zero_wall_loss.py	/^Uy = DataFrame(scaler_dict['Uy_scaler'].inverse_transform(PREDICs[..., 1]).reshape(-1), columns=['U:1'])$/;"	v
+Uy_scaler	Multiple_Input Network.py	/^Uy_scaler = StandardScaler().fit(Uy)$/;"	v
+Uz	isolated_prediction.py	/^Uz = DataFrame(Uz_scaler.inverse_transform(PREDICs[2][..., 0]).reshape(-1), columns=['U:2'])$/;"	v
+Uz	mag_isolated_prediction.py	/^Uz = DataFrame(scaler_dict['Uz_scaler'].inverse_transform(PREDICs[..., 2]).reshape(-1), columns=['U:2'])$/;"	v
+Uz	zero_wall_loss.py	/^Uz = DataFrame(scaler_dict['Uz_scaler'].inverse_transform(PREDICs[..., 2]).reshape(-1), columns=['U:2'])$/;"	v
+VEL	Scripts/cell_centers_clip.py	/^VEL = sys.argv[2]$/;"	v
+VEL	Scripts/slice_extraction.py	/^VEL = sys.argv[2]$/;"	v
+VELOC_VALUE	Scripts/velocity_alteration.py	/^VELOC_VALUE = sys.argv[2]$/;"	v
+VEL_ARR	isolated_prediction.py	/^VEL_ARR = INPUT_U_scaler.transform(VEL_ARR).reshape(1, -1, 1)$/;"	v
+VEL_ARR	isolated_prediction.py	/^VEL_ARR = np.array([[10.0]*868]).reshape(-1, 1)$/;"	v
+VEL_ARR	mag_isolated_prediction.py	/^VEL_ARR = np.array([[10.0]*868]).reshape(-1, 1)$/;"	v
+VEL_ARR	mag_isolated_prediction.py	/^VEL_ARR = scaler_dict['U_in'].transform(VEL_ARR).reshape(1, -1, 1)$/;"	v
+VEL_ARR	zero_wall_loss.py	/^VEL_ARR = np.array([[10.0]*868]).reshape(-1, 1)$/;"	v
+VEL_ARR	zero_wall_loss.py	/^VEL_ARR = scaler_dict['U_in'].transform(VEL_ARR).reshape(1, -1, 1)$/;"	v
+Writer	Scripts/Jupyter/auxiliar_functions.py	/^class Writer:$/;"	c
+Writer	Scripts/auxiliar_functions.py	/^class Writer:$/;"	c
+X	keras_cavity_MLP.py	/^X = NEW_ARRAY[..., :2]$/;"	v
+XMAX	keras_cavity_MLP.py	/^XMAX = [max(p) for p in [DATA_ARRAY[..., d]$/;"	v
+XMED	keras_cavity_MLP.py	/^XMED = [sum(p)\/len(p) for p in [DATA_ARRAY[..., d]$/;"	v
+XMIN	keras_cavity_MLP.py	/^XMIN = [min(p) for p in [DATA_ARRAY[..., d]$/;"	v
+XY	Multiple_Input Network.py	/^XY = list(zip(*[X, Y]))$/;"	v
+XY	Multiple_Input Network.py	/^XY = np.array(XY).reshape(11, 400, 2)$/;"	v
+XYZ	isolated_prediction.py	/^XYZ = read_csv(os.scandir(ANN_FOLDER).__next__().path)[['Points:0', 'Points:1', 'Points:2']]$/;"	v
+XYZ	mag_isolated_prediction.py	/^XYZ = read_csv(os.scandir(ANN_FOLDER).__next__().path)[['Points:0', 'Points:1', 'Points:2']]$/;"	v
+XYZ	zero_wall_loss.py	/^XYZ = read_csv(os.scandir(ANN_FOLDER).__next__().path)[['Points:0', 'Points:1', 'Points:2']]$/;"	v
+XY_Input_Layer	Multiple_Input Network.py	/^XY_Input_Layer = Input(shape=(400, 2), dtype="float32", name='XY_input')$/;"	v
+XY_output	Multiple_Input Network.py	/^XY_output = Dense(256, activation=None)(XY_Input_Layer)$/;"	v
+XY_scaler	Multiple_Input Network.py	/^XY_scaler = StandardScaler().fit(XY[0])$/;"	v
+XZ_input	ciclone_ANN_old.py	/^XZ_input = Input(shape=(X_TRAIN.shape[1], 2),$/;"	v
+XZ_input	isolated_prediction.py	/^XZ_input = Input($/;"	v
+XZ_input	mag_isolated_prediction.py	/^XZ_input = Input($/;"	v
+XZ_input	zero_wall_loss.py	/^XZ_input = Input(shape=(X_TRAIN.shape[1], 2), dtype='float32',  name='XZ_input')$/;"	v
+XZ_out	ciclone_ANN_old.py	/^XZ_out = Dense(512, activation=None)(XZ_input)$/;"	v
+XZ_out	isolated_prediction.py	/^XZ_out = Dense(256, activation=None)(XZ_input)$/;"	v
+XZ_out	mag_isolated_prediction.py	/^XZ_out = Dense(128, activation='tanh')(XZ_input)$/;"	v
+XZ_out	zero_wall_loss.py	/^XZ_out = Dense(128, activation='tanh')(XZ_input)$/;"	v
+X_test	keras_cavity_MLP.py	/^X_test = X_test[np.newaxis]$/;"	v
+X_train	keras_cavity_MLP.py	/^X_train = X_train[np.newaxis]$/;"	v
+Y	keras_cavity_MLP.py	/^Y = NEW_ARRAY[..., 2:]$/;"	v
+Y_test	keras_cavity_MLP.py	/^Y_test = Y_test[np.newaxis]$/;"	v
+Y_train	keras_cavity_MLP.py	/^Y_train = Y_train[np.newaxis]$/;"	v
+__init__	Scripts/Jupyter/auxiliar_functions.py	/^    def __init__(self, DATA_ARRAY, Case, Props, Dir):$/;"	m	class:Writer
+__init__	Scripts/Jupyter/auxiliar_functions.py	/^    def __init__(self, MODEL=Sequential(), lyr_type=Dense, num_lyrs=5,$/;"	m	class:NeuralTopology
+__init__	Scripts/Jupyter/auxiliar_functions.py	/^    def __init__(self, data_folder, scaler=MinMaxScaler, scaler_dir='.\/'):$/;"	m	class:TrainingData
+__init__	Scripts/auxiliar_functions.py	/^    def __init__(self, DATA_ARRAY, Case, Props, Dir):$/;"	m	class:Writer
+__init__	Scripts/auxiliar_functions.py	/^    def __init__(self, MODEL=Sequential(), lyr_type=Dense, num_lyrs=5,$/;"	m	class:NeuralTopology
+__init__	Scripts/auxiliar_functions.py	/^    def __init__(self, data_folder, scaler=MinMaxScaler, save_dir='.\/',$/;"	m	class:TrainingData
+add_net_layers	Scripts/Jupyter/auxiliar_functions.py	/^    def add_net_layers(self, qnt_layer=5, activation=['tanh'], dropout=0.0):$/;"	m	class:NeuralTopology
+add_net_layers	Scripts/auxiliar_functions.py	/^    def add_net_layers(self, qnt_layer=5, activation=['tanh'], dropout=0.0):$/;"	m	class:NeuralTopology
+algo	Scripts/neural_optimization_example.py	/^                                          algo=tpe.suggest,$/;"	v
+algo	ciclone_ANN.py	/^                                          algo=tpe.suggest,$/;"	v
+append_div_data	Scripts/auxiliar_functions.py	/^    def append_div_data(self, data, scaled_data):$/;"	m	class:TrainingData
+callbacks	Multiple_Input Network.py	/^         callbacks=[CBCK])$/;"	v
+create_sequential	Scripts/Jupyter/auxiliar_functions.py	/^    def create_sequential(self, inputs=(1,), outputs=1):$/;"	m	class:NeuralTopology
+create_sequential	Scripts/auxiliar_functions.py	/^    def create_sequential(self, inputs=(1,), outputs=1):$/;"	m	class:NeuralTopology
+data	Scripts/neural_optimization_example.py	/^                                          data=data_generator,$/;"	v
+data	ciclone_ANN.py	/^                                          data=data_generator,$/;"	v
+data_gen	Scripts/Jupyter/auxiliar_functions.py	/^    def data_gen(self, test_split=0.2, U_mag=False, load_sc=True, save_sc=False):$/;"	m	class:TrainingData
+data_gen	Scripts/auxiliar_functions.py	/^    def data_gen(self, test_split=0.2, U_mag=False, load_sc=True, save_sc=False):$/;"	m	class:TrainingData
+data_generator	Scripts/neural_optimization_example.py	/^def data_generator():$/;"	f
+data_generator	ciclone_ANN.py	/^def data_generator():$/;"	f
+data_prediction	Scripts/Jupyter/auxiliar_functions.py	/^    def data_prediction(self, MODEL, DATA_MAP, VEL=10):$/;"	m	class:TrainingData
+data_prediction	Scripts/auxiliar_functions.py	/^    def data_prediction(self, MODEL, DATA_MAP, VEL=10):$/;"	m	class:TrainingData
+df	Multiple_Input Network.py	/^df = read_csv('\/home\/lucashqr\/Documentos\/Cursos\/Keras Training\/Virtual\/estudos-dissert\/Keras_Virtual\/Code\/Redução de Ordem Algs\/DATA_FOLDER\/cavity_U_0.1.csv')$/;"	v
+eval_space	Scripts/neural_optimization_example.py	/^                                          eval_space=True)$/;"	v
+eval_space	ciclone_ANN.py	/^                                          eval_space=True)$/;"	v
+function_model	Scripts/neural_optimization_example.py	/^def function_model(x_train, y_train, x_test, y_test):$/;"	f
+load_sc	mag_isolated_prediction.py	/^                                                 load_sc=False,$/;"	v
+load_sc	zero_wall_loss.py	/^                                                 load_sc=False,$/;"	v
+loss	mag_isolated_prediction.py	/^              loss={'Ux_Output': 'mse', 'Uy_Output': 'mse', 'Uz_Output': 'mse',$/;"	v
+loss_weights	mag_isolated_prediction.py	/^              loss_weights={'Ux_Output': 0.7, 'Uy_Output': 0.7, 'Uz_Output': 0.7,$/;"	v
+mag_diff_loss	Scripts/Jupyter/auxiliar_functions.py	/^def mag_diff_loss(y_pred, y_true):$/;"	f
+mag_diff_loss	Scripts/auxiliar_functions.py	/^def mag_diff_loss(y_pred, y_true):$/;"	f
+max_evals	Scripts/neural_optimization_example.py	/^                                          max_evals=25,$/;"	v
+max_evals	ciclone_ANN.py	/^                                          max_evals=25,$/;"	v
+metrics	keras_cavity_MLP.py	/^              metrics=['mse'])$/;"	v
+metrics	mag_isolated_prediction.py	/^              metrics=['mae', mag_diff_loss])$/;"	v
+min_lr	Scripts/training_restart.py	/^                         min_lr=1E-10)$/;"	v
+min_lr	ciclone_ANN_old.py	/^                         min_lr=1E-7)$/;"	v
+min_lr	isolated_prediction.py	/^                         min_lr=1E-7)$/;"	v
+min_lr	mag_isolated_prediction.py	/^                         min_lr=1E-10)$/;"	v
+min_lr	zero_wall_loss.py	/^                         min_lr=1E-10)$/;"	v
+mk_path	Scripts/Jupyter/auxiliar_functions.py	/^    def mk_path(self, dim, name_pattern, folder_name='', ind=''):$/;"	m	class:Writer
+mk_path	Scripts/auxiliar_functions.py	/^    def mk_path(self, dim, name_pattern, folder_name='', ind=''):$/;"	m	class:Writer
+model	Multiple_Input Network.py	/^model = Model(inputs=[XY_Input_Layer, NU_aux_input], outputs=[Output_layer])$/;"	v
+model	Scripts/training_restart.py	/^model = load_model(MODEL_FN,)$/;"	v
+model	ciclone_ANN_old.py	/^model = Model(inputs=[XZ_input, U_entr], outputs=[Output_layer])$/;"	v
+model	isolated_prediction.py	/^model = Model(inputs=[XZ_input, U_entr], outputs=[Out_Ux, Out_Uy, Out_Uz])$/;"	v
+model	mag_isolated_prediction.py	/^model = Model(inputs=[XZ_input, U_entr],$/;"	v
+model	zero_wall_loss.py	/^model = Model(inputs=[XZ_input, U_entr],$/;"	v
+model_creator	ciclone_ANN.py	/^def model_creator(x_train, y_train, x_test, y_test):$/;"	f
+new_mag	zero_wall_loss.py	/^new_mag = update_wrapper(partial(zero_wall_mag,$/;"	v
+norm_Ux	Multiple_Input Network.py	/^norm_Ux = Ux_scaler.inverse_transform(predictionsX[..., 0])$/;"	v
+norm_Uy	Multiple_Input Network.py	/^norm_Uy = Uy_scaler.inverse_transform(predictionsX[..., 1])$/;"	v
+old_value	Scripts/velocity_alteration.py	/^                        old_value = [data for data in line.split()$/;"	v
+organized_data	Scripts/Jupyter/auxiliar_functions.py	/^    def organized_data(self, data):$/;"	m	class:TrainingData
+organized_data	Scripts/auxiliar_functions.py	/^    def organized_data(self, data):$/;"	m	class:TrainingData
+outputs	mag_isolated_prediction.py	/^              outputs=[Out_Ux, Out_Uy, Out_Uz, Out_U_mag])$/;"	v
+outputs	zero_wall_loss.py	/^              outputs=[Out_U_mag])$/;"	v
+predictionsX	Multiple_Input Network.py	/^predictionsX = model.predict({'XY_input':X_test[..., 1:][2].reshape(1,-1,2),'NU_input':X_test[..., 0][2].reshape(1, -1, 1)})$/;"	v
+re_NU	Multiple_Input Network.py	/^re_NU = NU_scaler.inverse_transform(X_test[..., 0][2])$/;"	v
+rec_function	Scripts/Jupyter/auxiliar_functions.py	/^def rec_function(dic, logfile):$/;"	f
+rec_function	Scripts/auxiliar_functions.py	/^def rec_function(dic, logfile):$/;"	f
+record	Scripts/Jupyter/auxiliar_functions.py	/^    def record(self, ind, DIR, NAME):$/;"	m	class:Writer
+record	Scripts/auxiliar_functions.py	/^    def record(self, ind, DIR, NAME):$/;"	m	class:Writer
+renderview	Scripts/cell_centers_clip.py	/^renderview = FindViewOrCreate('RenderView1', viewtype='RenderView')$/;"	v
+restore_best_weights	Scripts/training_restart.py	/^                   restore_best_weights=True)$/;"	v
+restore_best_weights	isolated_prediction.py	/^                   restore_best_weights=True, )$/;"	v
+restore_best_weights	keras_cavity_MLP.py	/^                          restore_best_weights=True),$/;"	v
+restore_best_weights	mag_isolated_prediction.py	/^                   restore_best_weights=True)$/;"	v
+restore_best_weights	zero_wall_loss.py	/^                   restore_best_weights=True, )$/;"	v
+return_scaler	Scripts/Jupyter/auxiliar_functions.py	/^    def return_scaler(self, load_sc=True, save_sc=False, data_input=None):$/;"	m	class:TrainingData
+return_scaler	Scripts/auxiliar_functions.py	/^    def return_scaler(self, load_sc=True, save_sc=False, data_input=None):$/;"	m	class:TrainingData
+save_sc	mag_isolated_prediction.py	/^                                                 save_sc=True)$/;"	v
+save_sc	zero_wall_loss.py	/^                                                 save_sc=True)$/;"	v
+scaled_Ux	Multiple_Input Network.py	/^scaled_Ux = Ux_scaler.transform(Ux)$/;"	v
+scaled_Ux	Multiple_Input Network.py	/^scaled_Ux = scaled_Ux.reshape(11,-1,1)$/;"	v
+scaled_Uy	Multiple_Input Network.py	/^scaled_Uy = Uy_scaler.transform(Uy)$/;"	v
+scaled_Uy	Multiple_Input Network.py	/^scaled_Uy = scaled_Uy.reshape(11,-1,1)$/;"	v
+scaled_XY	Multiple_Input Network.py	/^scaled_XY = np.array([XY_scaler.transform(XY[p]) for p in range(len(XY)) ])$/;"	v
+scaler_dict	mag_isolated_prediction.py	/^scaler_dict = DATA.return_scaler(load_sc=True)$/;"	v
+scaler_dict	zero_wall_loss.py	/^scaler_dict = DATA.return_scaler(load_sc=True)$/;"	v
+scores	ciclone_ANN_old.py	/^scores = model.evaluate({'XZ_input': X_TEST[..., :2],$/;"	v
+scores	keras_cavity_MLP.py	/^scores = MODEL.evaluate(X_test, Y_test)$/;"	v
+search_pattern	keras_cavity_MLP.py	/^search_pattern = "\\([-]?(\\d*.\\d*?)?(e-)?\\d* [-]?(\\d*.\\d*)?(e-)?\\d* [-]?(\\d*.\\d*)?\\)"$/;"	v
+set_result	Scripts/Jupyter/auxiliar_functions.py	/^    def set_result(self, filename):$/;"	m	class:NeuralTopology
+set_result	Scripts/auxiliar_functions.py	/^    def set_result(self, filename):$/;"	m	class:NeuralTopology
+shape	isolated_prediction.py	/^    shape=(X_TRAIN.shape[1], 1), dtype='float32', name='U_entr')$/;"	v
+shape	isolated_prediction.py	/^    shape=(X_TRAIN.shape[1], 2), dtype='float32', name='XZ_input')$/;"	v
+shape	mag_isolated_prediction.py	/^    shape=(X_TRAIN.shape[1], 1), dtype='float32', name='U_entr')$/;"	v
+shape	mag_isolated_prediction.py	/^    shape=(X_TRAIN.shape[1], 2), dtype='float32', name='XZ_input')$/;"	v
+shape	zero_wall_loss.py	/^    shape=(X_TRAIN.shape[1], 1), dtype='float32', name='U_entr')$/;"	v
+trials	Scripts/neural_optimization_example.py	/^                                          trials=Trials(),$/;"	v
+trials	ciclone_ANN.py	/^                                          trials=Trials(),$/;"	v
+validation_data	Scripts/training_restart.py	/^          validation_data=({'XZ_input': X_TEST[..., :2],$/;"	v
+validation_data	ciclone_ANN_old.py	/^          validation_data=({'XZ_input': X_TEST[..., :2],$/;"	v
+validation_data	isolated_prediction.py	/^          validation_data=({'XZ_input': X_TEST[..., :2],$/;"	v
+validation_data	mag_isolated_prediction.py	/^          validation_data=({'XZ_input': X_TEST[..., :2],$/;"	v
+validation_data	zero_wall_loss.py	/^          validation_data=({'XZ_input': X_TEST[..., :2],$/;"	v
+wall_data	Scripts/Jupyter/auxiliar_functions.py	/^    def wall_data(self, XZ_DATA):$/;"	m	class:TrainingData
+wall_data	Scripts/auxiliar_functions.py	/^    def wall_data(self, XZ_DATA):$/;"	m	class:TrainingData
+wall_map	zero_wall_loss.py	/^wall_map = DATA.wall_data(X_TRAIN[0, :, :2])$/;"	v
+wall_val	zero_wall_loss.py	/^                                 wall_val=wall_map),$/;"	v
+write_images	ciclone_ANN_old.py	/^                 write_images=False)$/;"	v
+write_images	isolated_prediction.py	/^                 write_images=False)$/;"	v
+write_images	mag_isolated_prediction.py	/^                 write_images=False)$/;"	v
+write_images	zero_wall_loss.py	/^                 write_images=False)$/;"	v
+x	Multiple_Input Network.py	/^x = Dense(256, activation='sigmoid')(Conc1)$/;"	v
+x	Multiple_Input Network.py	/^x = Dense(256, activation='sigmoid')(x)$/;"	v
+x	Multiple_Input Network.py	/^x = Dense(64, activation=None)(x)$/;"	v
+x	ciclone_ANN_old.py	/^x = Dense(128, activation='tanh')(x)$/;"	v
+x	ciclone_ANN_old.py	/^x = Dense(256, activation='relu')(x)$/;"	v
+x	ciclone_ANN_old.py	/^x = Dense(256, activation='sigmoid')(x)$/;"	v
+x	ciclone_ANN_old.py	/^x = Dense(256, activation='sigmoid',)(x)$/;"	v
+x	ciclone_ANN_old.py	/^x = Dense(256, activation='tanh',)(Conc1)$/;"	v
+x	ciclone_ANN_old.py	/^x = Dense(512, activation='tanh')(x)$/;"	v
+x	isolated_prediction.py	/^x = Dense(100, activation='tanh',)(x)$/;"	v
+x	isolated_prediction.py	/^x = Dense(150, activation='sigmoid')(x)$/;"	v
+x	isolated_prediction.py	/^x = Dense(200, activation='tanh')(Conc1)$/;"	v
+x	isolated_prediction.py	/^x = Dense(200, activation='tanh')(x)$/;"	v
+x	isolated_prediction.py	/^x = Dense(256, activation='sigmoid')(x)$/;"	v
+x	mag_isolated_prediction.py	/^x = Dense(128, activation='tanh')(Conc1)$/;"	v
+x	mag_isolated_prediction.py	/^x = Dense(128, activation='tanh')(x)$/;"	v
+x	mag_isolated_prediction.py	/^x = Dense(16, activation='tanh')(x)$/;"	v
+x	mag_isolated_prediction.py	/^x = Dense(32, activation='tanh')(x)$/;"	v
+x	mag_isolated_prediction.py	/^x = Dense(64, activation='tanh')(x)$/;"	v
+x	zero_wall_loss.py	/^x = Dense(128, activation='tanh')(Conc1)$/;"	v
+x	zero_wall_loss.py	/^x = Dense(128, activation='tanh')(x)$/;"	v
+x	zero_wall_loss.py	/^x = Dense(16, activation='tanh')(x)$/;"	v
+x	zero_wall_loss.py	/^x = Dense(32, activation='tanh')(x)$/;"	v
+x	zero_wall_loss.py	/^x = Dense(64, activation='tanh')(x)$/;"	v
+zero_wall_mag	Scripts/Jupyter/auxiliar_functions.py	/^def zero_wall_mag(y_pred, y_true, wall_val):$/;"	f
+zero_wall_mag	Scripts/auxiliar_functions.py	/^def zero_wall_mag(y_pred, y_true, wall_val):$/;"	f

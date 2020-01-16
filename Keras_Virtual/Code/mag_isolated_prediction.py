@@ -17,7 +17,6 @@ from functools import partial, update_wrapper
 from datetime import datetime
 from pandas import DataFrame, read_csv, concat
 
-
 # Criando diretório para operações de gravação
 # Gerando pastas para armazenar os dados
 NOW = datetime.now()
