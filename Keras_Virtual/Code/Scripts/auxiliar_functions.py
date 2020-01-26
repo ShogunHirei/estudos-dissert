@@ -15,6 +15,7 @@ from sklearn.preprocessing import MinMaxScaler
 from keras import backend as K
 from keras.layers import Dense, Input, concatenate
 from keras.models import Sequential
+from keras.callbacks import TensorBoard, EarlyStopping, ReduceLROnPlateau
 import tensorflow as tf
 
 
@@ -29,18 +30,17 @@ class TrainingData:
                  e precisa de um caractere a mais para ser eliminado
     """
     ORDER = []
+    save_dir='./'
+    scaler_folder='./' 
+    pattern=r'\d+\.?\d*_'
 
-    def __init__(self, data_folder, scaler=MinMaxScaler, save_dir='./',
-                 scaler_dir='./', pattern=r'\d+\.?\d*_'):
+    def __init__(self, data_folder, scaler=MinMaxScaler):
         self.data_folder = data_folder
         self.scaler = scaler
         self.N_SAMPLES = len(os.listdir(self.data_folder))
-        self.scaler_folder = scaler_dir
-        self.save_dir = save_dir
-        self.pattern = pattern
 
     def data_gen(self, inp_labels=['Inlet_U', 'Points:0', 'Points:2'],
-                 out_labels=['U'], test_split=0.2, U_mag=False,
+                 out_labels=['U'], test_split=0.2, mag=['Points'],
                  load_sc=True, save_sc=False):
         """
             File: training_data.py
@@ -49,7 +49,8 @@ class TrainingData:
             Description: Usar pasta com arquivos .csv e gerar conjuntos
                          de treinamento e teste.
 
-            U_mag -> Insere a magnitude da velocidade nos componentes
+            mag -> None ou Lista das magnitudes que NÃO SERÃO INSERIDAS no 
+                   conjunto de dados do treinamento
             load_sc -> Se for para carregar os scalers salvos
             save_sc -> não carregar, criar novos scaler e salvá-los
         """
@@ -62,7 +63,7 @@ class TrainingData:
 
         # Verificando uniformidade dos dados e organizando em np.arrays
         # para facilitar manipulação de amostras
-        DATA = self.labels_read(_DF, MAG=U_mag)
+        DATA = self.labels_read(_DF, MAG=mag)
 
         DATA = self.data_filter(DATA, inp_labels, out_labels)
         _TMP = DATA[0].copy()
@@ -134,22 +135,42 @@ class TrainingData:
         return TRAINING_DICT
 
 
-    def U_mag_data_gen(self, labeled_data):
+    def mag_data_gen(self, labeled_data, pop_labels):
         """
             File: training_data.py
-            Function Name: U_mag_data_gen
+            Function Name: mag_data_gen
             Summary: Gerar dados de magnitude da velocidade para concatenação
             Description: Função interna para agregar dados de magnitude
+                         pop_labels -> colunas que NÃO SERÃO DETERMINADOS dados
+                                       de magnitude
         """
 
-        keys = []
-        for label in labeled_data.keys():
-            if re.findall('^U:\d', label):
-                keys.append(label)
-        U_mag = np.concatenate(tuple([labeled_data[key][..., np.newaxis]
-                                      for key in keys]),
-                               axis=2)
-        labeled_data['U_mag'] = np.sqrt(np.sum(U_mag**2, axis=2))
+        vector = {}
+        if pop_labels:
+            if isinstance(pop_labels, list):
+                for label in labeled_data.keys():
+                    # Identificando as componentes dos vetores para os nomes das colunas
+                    vec_str = label.split(':')
+                    # Se houver as componentes adicionar ao dicionário
+                    # usando o ":" pq é o padrão do OpenFoam
+                    if len(vec_str) > 1:
+                        # verifica se a label está dentro do padrão de cada umas das
+                        # strings listadas em pop_labels, e se estiver não adiciona
+                        # ao dicionário `vector` que terão suas magnitudes inseridas
+                        # no conjunto geral de dados
+                        if not all([bool(re.findall(f'^{pop_key}', vec_str[0]))
+                                 for pop_key in pop_labels]):
+                            vector[vec_str[0]] = [comp for comp in labeled_data.keys() 
+                                                  if re.findall(f'^{vec_str[0]}:\d', comp)]
+                for vec in vector.keys():
+                    # usando a lista gerada dos componentes ['X:1', 'X:2', ..., 'X:N']
+                    # nas chaves dos dicionários e concatatenando os componentes dos 
+                    # respectivos arrays
+                    vec_mag = np.concatenate(tuple([labeled_data[key][..., np.newaxis]
+                                              for key in vector[vec]]), axis=2)
+                    labeled_data[f'{vec}_mag'] = np.sqrt(np.sum(vec_mag**2, axis=2))
+            else:
+                print('APENAS LISTA OU NONE')
 
         return None
 
@@ -257,15 +278,42 @@ class TrainingData:
                                                     for data in zipped_data]])
                     labels[label] = arr
                 if MAG:
-                    self.U_mag_data_gen(labels)
+                    self.mag_data_gen(labels, pop_labels=MAG)
                     print(labels.keys())
 
                 # TODO: Verificar possível utiilzação do Dataframe para essa organização
+        except UnicodeDecodeError:
+            print("""Cheque pasta com dados! Deve conter apenas arquivos .csv com 
+                    dados (colunas idênticas) para conjunto de treinamento""")
         except:
             print("Data is not uniform for separation!")
         return labels
 
-
+    
+    def list_callbacks(self, DIR, monit='val_loss'):
+        """
+            File: auxiliar_functions.py
+            Function Name: list_callbacks
+            Summary: Criar lista de callbacks comuns
+            Description: Criar callback para Tensorboard entre outros
+                         monit -> string para mudar variável observada para
+                                  função loss
+        """
+        # Criando Callbacks para o treinamento
+        CALLBACKS = [
+                     # Tensorboard
+                     TensorBoard(log_dir=DIR, histogram_freq=100, write_grads=False,
+                                 write_images=False),
+                     # Interromper Treinamento
+                     EarlyStopping(monitor=monit, min_delta=0.00001, patience=175,
+                                   restore_best_weights=True),
+                     # Reduzir taxa de aprendizagem
+                     ReduceLROnPlateau(monitor=monit, factor=0.1, patience=70, verbose=1,
+                                       min_lr=1E-10)
+                    ]
+        return CALLBACKS
+        
+    ## DEPRECATED!!
     def append_div_data(self, data, scaled_data):
         """
             File: auxiliar_functions.py
@@ -602,7 +650,7 @@ class NeuralTopology:
         return INP_LAYERS, OUT_LAYERS
 
 
-    def set_result(self, filename):
+    def set_result(self, MODEL, filename):
         """
             File: auxiliar_functions.py
             Function Name: set_result
@@ -611,8 +659,8 @@ class NeuralTopology:
                          da rede.
         """
         with open(filename, 'w') as fn:
-            rec_function(self.model.get_config(), fn)
-            self.model.summary(print_fn=lambda x: fn.write(x + '\n'))
+            rec_function(MODEL.get_config(), fn)
+            MODEL.summary(print_fn=lambda x: fn.write(x + '\n'))
         print('Done!')
         return None
 

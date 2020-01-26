@@ -23,4 +23,11 @@ Salve os dados dos pontos do filtro "Cell Centers" em .csv
         Serão necessárias criação de limites superiores e inferiores para a inclusão
             de todos os pontos em uma "faixa" específica de Y.
 
--> próxima parte (08/12) domingo: fazer função de U_mag
+-> próxima parte (08/12) domingo: fazer função de U_mag (feito) 
+-> feito função genérica para adicionar magnitude de vetores
+
+## 25/01 
+-> Limpar código: remover funções inúteis
+-> Addicionar função para gerar dados de previsão para comparação 
+    com a simulação original
+
