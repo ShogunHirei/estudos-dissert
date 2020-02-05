@@ -16,6 +16,7 @@ from keras import backend as K
 from keras.layers import Dense, Input, concatenate
 from keras.models import Sequential
 from keras.callbacks import TensorBoard, EarlyStopping, ReduceLROnPlateau
+from keras.utils import plot_model
 import tensorflow as tf
 
 
@@ -32,6 +33,7 @@ class TrainingData:
     ORDER = []
     save_dir='./'
     scaler_folder='./' 
+    info_folder='./'
     pattern=r'\d+\.?\d*_'
 
     def __init__(self, data_folder, scaler=MinMaxScaler):
@@ -39,7 +41,7 @@ class TrainingData:
         self.scaler = scaler
         self.N_SAMPLES = len(os.listdir(self.data_folder))
 
-    def data_gen(self, inp_labels=['Inlet_U', 'Points:0', 'Points:2'],
+    def data_gen(self, inp_labels=['Inlet_U', 'Points_0', 'Points_2'],
                  out_labels=['U'], test_split=0.2, mag=['Points'],
                  load_sc=True, save_sc=False):
         """
@@ -52,6 +54,7 @@ class TrainingData:
             mag -> None ou Lista das magnitudes que NÃO SERÃO INSERIDAS no 
                    conjunto de dados do treinamento
             load_sc -> Se for para carregar os scalers salvos
+                         (verificação será feita na pasta `scaler_folder`)
             save_sc -> não carregar, criar novos scaler e salvá-los
         """
 
@@ -65,6 +68,7 @@ class TrainingData:
         # para facilitar manipulação de amostras
         DATA = self.labels_read(_DF, MAG=mag)
 
+        # Separar dados de input e output
         DATA = self.data_filter(DATA, inp_labels, out_labels)
         _TMP = DATA[0].copy()
         _TMP.update(DATA[1])
@@ -87,12 +91,10 @@ class TrainingData:
         # Para facilitar a consulta da ordem
         self.ORDER = []
         # Inputs
-        self.ORDER.append({re.sub(r'[^A-Za-z0-9.][^A-Za-z0-9_.\-/]*', '_', 
-                                      label): (indx, DATA[0][label].shape[1:])
+        self.ORDER.append({label: (indx, DATA[0][label].shape[1:])
                            for indx, label in enumerate(DATA[0].keys())})
         # Outputs
-        self.ORDER.append({re.sub(r'[^A-Za-z0-9.][^A-Za-z0-9_.\-/]*', '_', 
-                                      label): (indx, DATA[1][label].shape[1:])
+        self.ORDER.append({label: (indx, DATA[1][label].shape[1:])
                            for indx, label in enumerate(DATA[1].keys())})
         print("ORDER Ready!")
 
@@ -187,31 +189,25 @@ class TrainingData:
         SCALER_DICT = {}
 
         if load_sc:
-            for label in data_input.keys():
-                SCALER_DICT[label] = load(f'{self.scaler_folder+label}.joblib')
+            if data_input:
+                for label in data_input.keys():
+                    # label = re.sub(r'[^A-Za-z0-9.][^A-Za-z0-9_.\-/]*', '_', 
+                                      # label)
+                    SCALER_DICT[label] = load(f'{self.scaler_folder+label}.joblib')
+            else:
+                for fn in os.scandir(self.scaler_folder):
+                    if bool(re.match(f'\w*.joblib$', fn.name)):
+                        SCALER_DICT[fn.name.split('.joblib')[0]] = load(f'{fn.path}')
         else:
             for label in data_input.keys():
+                # label = re.sub(r'[^A-Za-z0-9.][^A-Za-z0-9_.\-/]*', '_', 
+                                      # label)
                 SCALER_DICT[label] = self.scaler().fit(data_input[label])
-            # XZ = data_input[0]
-            # INPUT_U = data_input[1]
-            # U_xyz = data_input[2]
-            # XZ_scaler = self.scaler().fit(XZ[0])
-            # INPUT_U_scaler = self.scaler().fit(INPUT_U[:, 0])
-            # Ux_scaler = self.scaler().fit(U_xyz[..., 0])
-            # Uy_scaler = self.scaler().fit(U_xyz[..., 1])
-            # Uz_scaler = self.scaler().fit(U_xyz[..., 2])
         if save_sc:
             for label in data_input.keys():
+                # label = re.sub(r'[^A-Za-z0-9.][^A-Za-z0-9_.\-/]*', '_', 
+                                      # label)
                 dump(SCALER_DICT[label], f'{self.scaler_folder+label}.joblib')
-            # dump(XZ_scaler, self.scaler_folder+'points_scaler.joblib')
-            # dump(INPUT_U_scaler, self.scaler_folder+'U_input_scaler.joblib')
-            # dump(Ux_scaler, self.scaler_folder+'Ux_scaler.joblib')
-            # dump(Uy_scaler, self.scaler_folder+'Uy_scaler.joblib')
-            # dump(Uz_scaler, self.scaler_folder+'Uz_scaler.joblib')
-
-        # SCALER_DICT = {'XZ': XZ_scaler, 'U_in': INPUT_U_scaler,
-                       # 'Ux_scaler': Ux_scaler, 'Uy_scaler': Uy_scaler,
-                       # 'Uz_scaler': Uz_scaler}
 
         return SCALER_DICT
 
@@ -274,8 +270,11 @@ class TrainingData:
                 for label in zipped_data[0][1].columns:
                     # Selecionando os dados de acordo com os DataFrames
                     # organizados em `zipped_data`
+                    # Corrigindo a label
                     arr = np.array([sample[label] for sample in [data[1]
                                                     for data in zipped_data]])
+                    label = re.sub(r'[^A-Za-z0-9.][^A-Za-z0-9_.\-/]*', '_', 
+                                      label)
                     labels[label] = arr
                 if MAG:
                     self.mag_data_gen(labels, pop_labels=MAG)
@@ -337,34 +336,76 @@ class TrainingData:
             print('No DIV inserted')
         return scaled_data
 
-    def predict_data_generator(self, model, INPUT_DATA, FILENAME):
+    def predict_data_generator(self, model, INPUT_DATA, FILENAME, ORIGIN_DATA):
         """
             File: auxiliar_functions.py
             Function Name: predict_data_generator
             Summary: Gerar dados de previsão
             Description: Função que salva os dados de previsão e computa
                          a diferença entre o dado real e o dado previsto
+                         INPUT_DATA -> Dicionário com os dados já escalados 
+                                       para inserir em model.predict
         """
+
         print("Gerando dados para previsão")
         scaler_dict = self.return_scaler(load_sc=True)
+        print("Carregado padronizadores!")
 
-        VEL_ARR = np.array([[10.0]*868]).reshape(-1, 1)
-        VEL_ARR = scaler_dict['U_in'].transform(VEL_ARR).reshape(1, -1, 1)
-
-        # Valores previstos para Ux, Uy e Uz
+        # Dados inseridos na predição 
         PREDICs = model.predict(INPUT_DATA)
-        print([p.shape for p in PREDICs])
+
+        # Retornando os dados para a escala original do problema para 
+        # comparação com os dados de simulação
+
+        # Nomes das colunas nos dados
+        colunas = read_csv(os.scandir(self.data_folder).__next__().path).columns
+        print(scaler_dict)
 
         # Retornando os dados para a escala anterior
-        Ux = DataFrame(scaler_dict['Ux_scaler'].inverse_transform(PREDICs[..., 0]).reshape(-1), columns=['U:0'])
-        Uy = DataFrame(scaler_dict['Uy_scaler'].inverse_transform(PREDICs[..., 1]).reshape(-1), columns=['U:1'])
-        Uz = DataFrame(scaler_dict['Uz_scaler'].inverse_transform(PREDICs[..., 2]).reshape(-1), columns=['U:2'])
+        in_col, out_col = [], [] 
+        if isinstance(PREDICs, list):
+            data_to_concat = []
+            for name in INPUT_DATA.keys():
+                col = [key for key in colunas if bool(re.match(f"^{name.replace('_', '[:_]')}$", key))]
+                if bool(col):
+                    print(col, name, INPUT_DATA[name][0].shape)
+                    in_col.append(col[0])
+                    arr = scaler_dict[name].inverse_transform(INPUT_DATA[name].reshape(1, -1))
+                    print(f"arr shape -> {arr.shape}")
+                    data_to_concat.append(DataFrame(arr.reshape(-1), columns=col))
+            for name in self.ORDER[1].keys():
+                col = [key for key in colunas if bool(re.match(f"^{name.replace('_', '[:_]')}$", key))]
+                if bool(col):
+                    print(col)
+                    out_col.append(col[0])
+                    # ORDER[1] é o dicionário dos outputs que contém
+                    # uma tupla com o indice daquela saida e o shape da label
+                    pred_arr = PREDICs[self.ORDER[1][name][0]].reshape(1,-1)
+                    arr = scaler_dict[name].inverse_transform(pred_arr)
+                    data_to_concat.append(DataFrame(arr.reshape(-1), columns=col))
+        ## TODO: Problemas com os nomes das chaves dos padronizadores 
+        ##       Sugestão: mudar maneira de persistência dos mesmo em `return_scaler`
+        ##      
+        ## TODO: Verificar colunas que não estão incluídas nos inputs mas são necessárias 
+        #           para a comparação com os dados do OpenFoam
+        ##       Sugestão: Adicionar todas colunas exceto as dos outputs 
 
-        # Inserindo valor dos pontos de Y
-        XYZ = read_csv(os.scandir(self.data_folder).__next__().path)[['Points:0', 'Points:1', 'Points:2']]
+        print("=="*20)
+
+        [print(p.shape, p.columns) for p in data_to_concat ]
+
+        print("=="*20)
+        print(in_col, out_col)
+
+        # Ux = DataFrame(scaler_dict['Ux_scaler'].inverse_transform(PREDICs[..., 0]).reshape(-1), columns=['U:0'])
+        # Uy = DataFrame(scaler_dict['Uy_scaler'].inverse_transform(PREDICs[..., 1]).reshape(-1), columns=['U:1'])
+        # Uz = DataFrame(scaler_dict['Uz_scaler'].inverse_transform(PREDICs[..., 2]).reshape(-1), columns=['U:2'])
+
+        # # Inserindo valor dos pontos de Y
+        # XYZ = read_csv(os.scandir(self.data_folder).__next__().path)[['Points:0', 'Points:1', 'Points:2']]
 
         # Geração de arquivo .CSV para leitura
-        SLICE_DATA = concat([Ux, Uy, Uz, XYZ], sort=True, axis=1)
+        SLICE_DATA = concat(data_to_concat, sort=True, axis=1)
 
         # Escrevendo o header no formato do paraview
         with open(self.save_dir+FILENAME, 'w') as filename:
@@ -380,11 +421,11 @@ class TrainingData:
 
         # Diferença do valor previsto e o caso original
         print("Calculando diferença...")
-        ORIGIN_DATA = read_csv(self.data_folder+'SLICE_DATA_U_10_0.csv')
+        ORIGIN_DATA = read_csv(ORIGIN_DATA)
 
-        DIFF = SLICE_DATA[['U:0', 'U:1', 'U:2']] - ORIGIN_DATA[['U:0', 'U:1', 'U:2']]
+        DIFF = SLICE_DATA[out_col] - ORIGIN_DATA[out_col]
 
-        RESULT_DATA = concat([DIFF, XYZ], axis=1)
+        RESULT_DATA = concat([DIFF, SLICE_DATA[in_col]], axis=1)
 
         print('Escrevendo dados DIFERENÇA')
         RESULT_DATA.to_csv(self.save_dir + 'DIFF_SLICE_U_10.csv', index=False)
@@ -617,8 +658,9 @@ class NeuralTopology:
                 ######  nomes de variáveis do Tensorflow
                 # https://www.tensorflow.org/api_docs/python/tf/Operation
                 # Basicamente, remover caracteres especiais tipo: ':' e ')',
-                correc_label = re.sub(r'[^A-Za-z0-9.][^A-Za-z0-9_.\-/]*', '_', 
-                                      label)
+                # correc_label = re.sub(r'[^A-Za-z0-9.][^A-Za-z0-9_.\-/]*', '_', 
+                                      # label)
+                correc_label = label
                 in_lyr = Input(shape=(INPUTS[label][1][-1], 1), dtype='float32', name=correc_label)
                 # Se é necessário adicionar uma camada densa para corrigir as
                 # dimensões do neurônio
@@ -627,10 +669,17 @@ class NeuralTopology:
                     TO_CONC.append(lyr)
                 INP_LAYERS.append(in_lyr)
             # Concatenando todas as entradas
-            if not TO_CONC:
-                JOINED_LYRS = concatenate(INP_LAYERS, axis=-1)
+            if len(INP_LAYERS)>1:
+                # Caso exista apenas uma entrada
+                if not TO_CONC:
+                    JOINED_LYRS = concatenate(INP_LAYERS, axis=-1)
+                else:
+                    JOINED_LYRS = concatenate(TO_CONC, axis=-1)
             else:
-                JOINED_LYRS = concatenate(TO_CONC, axis=-1)
+                if bool(INP_LAYERS):
+                    JOINED_LYRS = INP_LAYERS[0]
+                else:
+                    print("No Inputs! Are you nuts?")
             # TODO: Verificar como chamar um agrupamento de camadas aqui
             # ---> SUGEST: USAR LISTA COM AS CAMADAS E CHAMAR POR ELEMENTO
             X = LAYER_STACK[0](JOINED_LYRS)
@@ -640,9 +689,9 @@ class NeuralTopology:
                     X = LAYER_STACK[idx](X)
                 X = LAYER_STACK[-1](X)
             for label in OUTPUTS.keys():
-                correc_label = re.sub(r'[^A-Za-z0-9.][^A-Za-z0-9_.\-/]*', '_', 
-                                      label)
-                lyr = self.type(1, dtype='float32', name=correc_label)(X)
+                # correc_label = re.sub(r'[^A-Za-z0-9.][^A-Za-z0-9_.\-/]*', '_', 
+                                      # label)
+                lyr = self.type(1, dtype='float32', name=label)(X)
                 OUT_LAYERS.append(lyr)
         else:
             print('APENAS PARA REDES TIPO Model!')
@@ -650,7 +699,7 @@ class NeuralTopology:
         return INP_LAYERS, OUT_LAYERS
 
 
-    def set_result(self, MODEL, filename):
+    def set_info(self, MODEL, filename):
         """
             File: auxiliar_functions.py
             Function Name: set_result
@@ -658,7 +707,10 @@ class NeuralTopology:
             Description: Usar a função recursiva para persistir a configuração
                          da rede.
         """
-        with open(filename, 'w') as fn:
+        print("Inserindo imagem do modelo...")
+        plot_model(MODEL, to_file=filename+'.png', show_shapes=True)
+        print("Gravando informações sobre arquitetura...")
+        with open(filename+'.txt', 'w') as fn:
             rec_function(MODEL.get_config(), fn)
             MODEL.summary(print_fn=lambda x: fn.write(x + '\n'))
         print('Done!')
