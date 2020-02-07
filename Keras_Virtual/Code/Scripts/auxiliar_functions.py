@@ -60,20 +60,24 @@ class TrainingData:
 
         # Gerando {VEL_DE_ENTRADA : Dataframe} para todos os dados dentro da
         # pasta de dados `data_folder`
+        print("Gerando dados de entrada...")
         _DF = {float(re.findall(self.pattern,
                                 dado.path)[0][:-1]): read_csv(dado.path)
                for dado in os.scandir(self.data_folder)}
 
         # Verificando uniformidade dos dados e organizando em np.arrays
         # para facilitar manipulação de amostras
+        print("Verificando labels")
         DATA = self.labels_read(_DF, MAG=mag)
 
         # Separar dados de input e output
+        print("Separando dados de entrada e saída...")
         DATA = self.data_filter(DATA, inp_labels, out_labels)
         _TMP = DATA[0].copy()
         _TMP.update(DATA[1])
 
         # Carregando normalizadores
+        print("Carregando padronizadores...")
         scaler_dic = self.return_scaler(load_sc=load_sc, save_sc=save_sc,
                                         data_input=_TMP)
 
@@ -104,6 +108,7 @@ class TrainingData:
         Y = np.concatenate(tuple([data[..., np.newaxis]
                                   for data in DATA[1].values()]), axis=2)
 
+        print("Gerando dicionário de treinamento...")
         X_TRAIN, X_TEST, Y_TRAIN, Y_TEST = train_test_split(X, Y,
                                                             test_size=test_split)
 
@@ -137,7 +142,7 @@ class TrainingData:
         return TRAINING_DICT
 
 
-    def mag_data_gen(self, labeled_data, pop_labels):
+    def mag_data_gen(self, labeled_data, pop_labels=['Points']):
         """
             File: training_data.py
             Function Name: mag_data_gen
@@ -152,9 +157,11 @@ class TrainingData:
             if isinstance(pop_labels, list):
                 for label in labeled_data.keys():
                     # Identificando as componentes dos vetores para os nomes das colunas
-                    vec_str = label.split(':')
+                    #   Usando o separador "_" por causa da mudança das labels
+                    #   realizada em `labels_read` para ficar em conformação com os 
+                    #   nomes do Tensorflow
+                    vec_str = label.split('_')
                     # Se houver as componentes adicionar ao dicionário
-                    # usando o ":" pq é o padrão do OpenFoam
                     if len(vec_str) > 1:
                         # verifica se a label está dentro do padrão de cada umas das
                         # strings listadas em pop_labels, e se estiver não adiciona
@@ -163,16 +170,19 @@ class TrainingData:
                         if not all([bool(re.findall(f'^{pop_key}', vec_str[0]))
                                  for pop_key in pop_labels]):
                             vector[vec_str[0]] = [comp for comp in labeled_data.keys() 
-                                                  if re.findall(f'^{vec_str[0]}:\d', comp)]
+                                                  if re.findall(f'^{vec_str[0]}_\d', comp)]
                 for vec in vector.keys():
                     # usando a lista gerada dos componentes ['X:1', 'X:2', ..., 'X:N']
                     # nas chaves dos dicionários e concatatenando os componentes dos 
-                    # respectivos arrays
-                    vec_mag = np.concatenate(tuple([labeled_data[key][..., np.newaxis]
-                                              for key in vector[vec]]), axis=2)
-                    labeled_data[f'{vec}_mag'] = np.sqrt(np.sum(vec_mag**2, axis=2))
+                    # respectivos arrays para as chaves que não estão vazias
+                    try:
+                        vec_mag = np.concatenate(tuple([labeled_data[key][..., np.newaxis]
+                                                  for key in vector[vec]]), axis=2)
+                        labeled_data[f'{vec}_mag'] = np.sqrt(np.sum(vec_mag**2, axis=2))
+                    except: 
+                        pass
             else:
-                print('APENAS LISTA OU NONE')
+                print('Apenas lista ou NoneType')
 
         return None
 
@@ -233,6 +243,7 @@ class TrainingData:
                     Y[label] = data[label]
         print('Inputs:', " ".join(X.keys()))
         print('Outputs: ', " ".join(Y.keys()))
+        # Dados não incluídos
         NI = set(data.keys()) - set(Y.keys()) - set(X.keys())
         if NI:
             print(", ".join(NI) +" not included!")
@@ -254,6 +265,7 @@ class TrainingData:
             # Verificar primeiro se todos os dados possuem as mesmas colunas
             check = all([(sample_data[i].columns == sample_data[j].columns).all()
                          for i in sample_data.keys() for j in sample_data.keys()])
+            print("Dados Uniformes!")
             if check:
                 # Usando todas as colunas dos dados para gerar dicionário
                 # separados por colunas
@@ -267,6 +279,7 @@ class TrainingData:
                 labels['Inlet_U'] = np.array(Inlet_U)
 
                 # As colunas dos dados (propriedades) dentro das amostras
+                print("Elaborando colunas e corrigindo nomes...")
                 for label in zipped_data[0][1].columns:
                     # Selecionando os dados de acordo com os DataFrames
                     # organizados em `zipped_data`
@@ -277,6 +290,7 @@ class TrainingData:
                                       label)
                     labels[label] = arr
                 if MAG:
+                    print("Removendo Magnitudes descritas")
                     self.mag_data_gen(labels, pop_labels=MAG)
                     print(labels.keys())
 
@@ -359,50 +373,30 @@ class TrainingData:
 
         # Nomes das colunas nos dados
         colunas = read_csv(os.scandir(self.data_folder).__next__().path).columns
-        print(scaler_dict)
 
         # Retornando os dados para a escala anterior
         in_col, out_col = [], [] 
         if isinstance(PREDICs, list):
             data_to_concat = []
             for name in INPUT_DATA.keys():
+                # Substituir o "_" por uma regex para bater com os nomes das colunas
                 col = [key for key in colunas if bool(re.match(f"^{name.replace('_', '[:_]')}$", key))]
                 if bool(col):
-                    print(col, name, INPUT_DATA[name][0].shape)
                     in_col.append(col[0])
                     arr = scaler_dict[name].inverse_transform(INPUT_DATA[name].reshape(1, -1))
-                    print(f"arr shape -> {arr.shape}")
                     data_to_concat.append(DataFrame(arr.reshape(-1), columns=col))
             for name in self.ORDER[1].keys():
                 col = [key for key in colunas if bool(re.match(f"^{name.replace('_', '[:_]')}$", key))]
                 if bool(col):
-                    print(col)
                     out_col.append(col[0])
                     # ORDER[1] é o dicionário dos outputs que contém
-                    # uma tupla com o indice daquela saida e o shape da label
+                    # uma tupla com o indice e o shape do output
                     pred_arr = PREDICs[self.ORDER[1][name][0]].reshape(1,-1)
                     arr = scaler_dict[name].inverse_transform(pred_arr)
                     data_to_concat.append(DataFrame(arr.reshape(-1), columns=col))
-        ## TODO: Problemas com os nomes das chaves dos padronizadores 
-        ##       Sugestão: mudar maneira de persistência dos mesmo em `return_scaler`
-        ##      
-        ## TODO: Verificar colunas que não estão incluídas nos inputs mas são necessárias 
-        #           para a comparação com os dados do OpenFoam
-        ##       Sugestão: Adicionar todas colunas exceto as dos outputs 
 
-        print("=="*20)
-
-        [print(p.shape, p.columns) for p in data_to_concat ]
-
-        print("=="*20)
-        print(in_col, out_col)
-
-        # Ux = DataFrame(scaler_dict['Ux_scaler'].inverse_transform(PREDICs[..., 0]).reshape(-1), columns=['U:0'])
-        # Uy = DataFrame(scaler_dict['Uy_scaler'].inverse_transform(PREDICs[..., 1]).reshape(-1), columns=['U:1'])
-        # Uz = DataFrame(scaler_dict['Uz_scaler'].inverse_transform(PREDICs[..., 2]).reshape(-1), columns=['U:2'])
-
-        # # Inserindo valor dos pontos de Y
-        # XYZ = read_csv(os.scandir(self.data_folder).__next__().path)[['Points:0', 'Points:1', 'Points:2']]
+        print(f"Inputs = {in_col}")
+        print(f"Outputs = {out_col}")
 
         # Geração de arquivo .CSV para leitura
         SLICE_DATA = concat(data_to_concat, sort=True, axis=1)
@@ -417,7 +411,6 @@ class TrainingData:
 
         SLICE_DATA.to_csv(self.save_dir + FILENAME, index=False, header=False, mode='a')
         print("Dados de previsão copiados!")
-
 
         # Diferença do valor previsto e o caso original
         print("Calculando diferença...")
