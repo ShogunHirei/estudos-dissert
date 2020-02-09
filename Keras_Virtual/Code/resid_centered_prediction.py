@@ -5,8 +5,8 @@ Description: Neural Networks prediction of Mass and Momentum conservation
              residues
 """
 
-import os
-import sys
+import os, re, sys
+import numpy as np
 from keras.models import Model
 from keras.layers import Dense
 from keras.utils import plot_model
@@ -36,24 +36,23 @@ DATA.save_dir = BASE_DIR
 DATA.info_folder = INFO_DIR
 
 # Dados de treinamento
-X_TRAIN, X_TEST, Y_TRAIN, Y_TEST = DATA.data_gen(test_split=0.15,
+X_TRAIN, X_TEST, Y_TRAIN, Y_TEST = DATA.data_gen(test_split=0.20,
                                                  inp_labels=['Point', 'Inlet'],
                                                  out_labels=['U', 'div', 'Res'],
-                                                 # mag=['Point', 'Res'],
-                                                 load_sc=False,
-                                                 save_sc=True)
+                                                 mag=['U'],
+                                                 load_sc=False,)
 
 
 # Criando modelo de rede
-tpl = NeuralTopology(MODEL=Model(), init_lyr=256) 
+tpl = NeuralTopology(MODEL=Model(), init_lyr=64) 
 
-DEEP = 8
+DEEP = 5
 
-AUTO_ENCODER_STACK = [Dense(int(tpl.layer0*2**(-i)),
+AUTO_ENCODER_STACK = [Dense(int(tpl.layer0*2**(-i*0.5)),
                         bias_initializer='random_normal',
                         kernel_regularizer=l1(l=0.001), activation='tanh') 
                      for i in range(DEEP) if i<=DEEP//2] + [
-                    Dense(int(tpl.layer0*2**(i-DEEP)),
+                    Dense(int(tpl.layer0*2**((i-DEEP)*0.5)),
                         bias_initializer='random_normal',
                         kernel_regularizer=l1(l=0.001), activation='tanh')
                      for i in range(DEEP) if i>=DEEP//2]
@@ -64,7 +63,7 @@ nets = tpl.multi_In_Out(DATA.ORDER[0], DATA.ORDER[1],
                         LAYER_STACK = AUTO_ENCODER_STACK,
                         # Se adicionar mais uma camada densa para corrigir 
                         # dimensões
-                        ADD_DENSE=True)
+                        ADD_DENSE=False)
 
 model = Model(inputs=nets[0], outputs=nets[1])
 
@@ -89,7 +88,7 @@ V_Y = DATA.training_dict(Y_TEST, 1)
 # Lista de Callbacks completa
 CBCK = DATA.list_callbacks(BASE_DIR)
 
-history = model.fit(X, Y, validation_data=(V_X, V_Y), batch_size=8, epochs=500,
+history = model.fit(X, Y, validation_data=(V_X, V_Y), batch_size=8, epochs=2,
                     callbacks=CBCK)
 
 print("Salvando modelo para futuro treinamento")
@@ -98,6 +97,14 @@ model.save(BASE_DIR+f'model_{NOW}.h5')
 # Gerar um arquivo para reconstrução do objeto history
 print("Guardando History...")
 dump(history, BASE_DIR + 'history_object.joblib')
+
+print("Inserindo dados de previsão...")
+
+print("Determinando os valores de Inlet para todos os casos")
+suffix, caso_name, inp_data = DATA.pickup_data(V_X, RND=10.0)
+
+DATA.predict_data_generator(model, inp_data, f'slice_data_{suffix}.csv',
+                            DATA.data_folder+caso_name)
 
 print('FIM!! \o/')
 

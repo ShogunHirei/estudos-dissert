@@ -8,6 +8,7 @@ Description: Funções utilizadas repetidamente durante a implementação.
 import re
 import os
 import numpy as np
+import tensorflow as tf
 from joblib import dump, load
 from pandas import read_csv, concat, DataFrame
 from sklearn.model_selection import train_test_split
@@ -17,7 +18,6 @@ from keras.layers import Dense, Input, concatenate
 from keras.models import Sequential
 from keras.callbacks import TensorBoard, EarlyStopping, ReduceLROnPlateau
 from keras.utils import plot_model
-import tensorflow as tf
 
 
 class TrainingData:
@@ -32,7 +32,7 @@ class TrainingData:
     """
     ORDER = []
     save_dir='./'
-    scaler_folder='./' 
+    scaler_folder='./'
     info_folder='./'
     pattern=r'\d+\.?\d*_'
 
@@ -43,7 +43,7 @@ class TrainingData:
 
     def data_gen(self, inp_labels=['Inlet_U', 'Points_0', 'Points_2'],
                  out_labels=['U'], test_split=0.2, mag=['Points'],
-                 load_sc=True, save_sc=False):
+                 load_sc=True):
         """
             File: training_data.py
             Function Name: data_gen
@@ -51,7 +51,7 @@ class TrainingData:
             Description: Usar pasta com arquivos .csv e gerar conjuntos
                          de treinamento e teste.
 
-            mag -> None ou Lista das magnitudes que NÃO SERÃO INSERIDAS no 
+            mag -> None ou Lista das magnitudes que NÃO SERÃO INSERIDAS no
                    conjunto de dados do treinamento
             load_sc -> Se for para carregar os scalers salvos
                          (verificação será feita na pasta `scaler_folder`)
@@ -78,8 +78,7 @@ class TrainingData:
 
         # Carregando normalizadores
         print("Carregando padronizadores...")
-        scaler_dic = self.return_scaler(load_sc=load_sc, save_sc=save_sc,
-                                        data_input=_TMP)
+        scaler_dic = self.return_scaler(load_sc=load_sc, data_input=_TMP)
 
         # Cada valor do dicionário scaler_dic referencia seu padronizador
         # utilizando isso para escalonar os dados
@@ -119,7 +118,7 @@ class TrainingData:
 
         return (X_TRAIN, X_TEST, Y_TRAIN, Y_TEST)
 
-    
+
     def training_dict(self, DICT, n):
         """
             File: auxiliar_functions.py
@@ -134,7 +133,7 @@ class TrainingData:
         for label in self.ORDER[n].keys():
             # ORDER é uma lista com dois dicionários: Input e Output
             # Cada chave dos dicionários contem o índice dos dados nos
-            # conjuntos de treinamento e teste e a dimensão 
+            # conjuntos de treinamento e teste e a dimensão
             TPL = [dim for dim in DICT.shape[:-1]]
             TPL += [1]
             TPL = tuple(TPL)
@@ -148,45 +147,34 @@ class TrainingData:
             Function Name: mag_data_gen
             Summary: Gerar dados de magnitude da velocidade para concatenação
             Description: Função interna para agregar dados de magnitude
-                         pop_labels -> colunas que NÃO SERÃO DETERMINADOS dados
-                                       de magnitude
+                         pop_labels -> colunas que terão a sua magnitude
+                                       calculada
         """
 
         vector = {}
         if pop_labels:
             if isinstance(pop_labels, list):
-                for label in labeled_data.keys():
-                    # Identificando as componentes dos vetores para os nomes das colunas
-                    #   Usando o separador "_" por causa da mudança das labels
-                    #   realizada em `labels_read` para ficar em conformação com os 
-                    #   nomes do Tensorflow
-                    vec_str = label.split('_')
-                    # Se houver as componentes adicionar ao dicionário
-                    if len(vec_str) > 1:
-                        # verifica se a label está dentro do padrão de cada umas das
-                        # strings listadas em pop_labels, e se estiver não adiciona
-                        # ao dicionário `vector` que terão suas magnitudes inseridas
-                        # no conjunto geral de dados
-                        if not all([bool(re.findall(f'^{pop_key}', vec_str[0]))
-                                 for pop_key in pop_labels]):
-                            vector[vec_str[0]] = [comp for comp in labeled_data.keys() 
+                # Procura por todos os componentes em todas as labels para
+                # identificar as labels seguidas por um número
+                for pop_key in pop_labels:
+                    for label in labeled_data.keys():
+                        vec_str = label.split('_')
+                        if bool(re.match(f'^{pop_key}', label)):
+                            vector[vec_str[0]] = [comp for comp in labeled_data.keys()
                                                   if re.findall(f'^{vec_str[0]}_\d', comp)]
                 for vec in vector.keys():
-                    # usando a lista gerada dos componentes ['X:1', 'X:2', ..., 'X:N']
-                    # nas chaves dos dicionários e concatatenando os componentes dos 
-                    # respectivos arrays para as chaves que não estão vazias
                     try:
                         vec_mag = np.concatenate(tuple([labeled_data[key][..., np.newaxis]
                                                   for key in vector[vec]]), axis=2)
                         labeled_data[f'{vec}_mag'] = np.sqrt(np.sum(vec_mag**2, axis=2))
-                    except: 
-                        pass
+                    except:
+                        print("Não consegui calcular as magnitudes! ¯\_(ツ)_/¯")
             else:
                 print('Apenas lista ou NoneType')
 
         return None
 
-    def return_scaler(self, load_sc=True, save_sc=False, data_input=None):
+    def return_scaler(self, load_sc=True, data_input=None):
         """
             File: auxiliar_functions.py
             Function Name: return_scaler
@@ -201,8 +189,6 @@ class TrainingData:
         if load_sc:
             if data_input:
                 for label in data_input.keys():
-                    # label = re.sub(r'[^A-Za-z0-9.][^A-Za-z0-9_.\-/]*', '_', 
-                                      # label)
                     SCALER_DICT[label] = load(f'{self.scaler_folder+label}.joblib')
             else:
                 for fn in os.scandir(self.scaler_folder):
@@ -210,13 +196,7 @@ class TrainingData:
                         SCALER_DICT[fn.name.split('.joblib')[0]] = load(f'{fn.path}')
         else:
             for label in data_input.keys():
-                # label = re.sub(r'[^A-Za-z0-9.][^A-Za-z0-9_.\-/]*', '_', 
-                                      # label)
                 SCALER_DICT[label] = self.scaler().fit(data_input[label])
-        if save_sc:
-            for label in data_input.keys():
-                # label = re.sub(r'[^A-Za-z0-9.][^A-Za-z0-9_.\-/]*', '_', 
-                                      # label)
                 dump(SCALER_DICT[label], f'{self.scaler_folder+label}.joblib')
 
         return SCALER_DICT
@@ -286,23 +266,22 @@ class TrainingData:
                     # Corrigindo a label
                     arr = np.array([sample[label] for sample in [data[1]
                                                     for data in zipped_data]])
-                    label = re.sub(r'[^A-Za-z0-9.][^A-Za-z0-9_.\-/]*', '_', 
+                    label = re.sub(r'[^A-Za-z0-9.][^A-Za-z0-9_.\-/]*', '_',
                                       label)
                     labels[label] = arr
                 if MAG:
-                    print("Removendo Magnitudes descritas")
                     self.mag_data_gen(labels, pop_labels=MAG)
-                    print(labels.keys())
+                    print("Magnitudes calculadas")
 
                 # TODO: Verificar possível utiilzação do Dataframe para essa organização
         except UnicodeDecodeError:
-            print("""Cheque pasta com dados! Deve conter apenas arquivos .csv com 
+            print("""Cheque pasta com dados! Deve conter apenas arquivos .csv com
                     dados (colunas idênticas) para conjunto de treinamento""")
         except:
             print("Data is not uniform for separation!")
         return labels
 
-    
+
     def list_callbacks(self, DIR, monit='val_loss'):
         """
             File: auxiliar_functions.py
@@ -325,31 +304,54 @@ class TrainingData:
                                        min_lr=1E-10)
                     ]
         return CALLBACKS
-        
-    ## DEPRECATED!!
-    def append_div_data(self, data, scaled_data):
+
+
+    
+    def pickup_data(self, Val_Data, RND=None, key='Inlet_U'):
         """
             File: auxiliar_functions.py
-            Function Name: append_div_data
-            Summary: Append Div data
-            Description: Função que verifica se ´div(phi)´ está entre os
-                         dados disponíveis e os adiciona ao conjunto de
-                         treinamento
+            Function Name: pickup_data
+            Summary: Preparar dados de input para previsão
+            Description: Preparar dados que serão utilizados na previsão
+                         Val_Data --> DICIONÁRIO com os dados de validação
+                         RND --> Se None ou False usar valor aleatório
+                                 se for especificado, será buscado o valor mais 
+                                    próximo a ele no banco de dados
+                         key --> chave que será usada para diferenciar entre os 
+                                 dados
+                         return suffix (str), caso_name (str), inp_data (dict)
         """
-        # Considerando uniformidade entre os dados
-        # inserindo DF como a fonte de dados repetir o executado em data_gen
-        try:
-            DIV = np.array([np.array(sample[0]['div(phi)'])
-                            for sample in data if 'div(phi)' in sample[0].columns])
-            # Normalizando os dados para retornar o conjunto de dados
-            # prontos para o treinamento
-            Scaler_div = self.scaler().fit(DIV)
-            scl_DIV = Scaler_div.transform(DIV)
-            scaled_data = np.concatenate((scaled_data, scl_DIV[..., np.newaxis]), axis=2)
-        except:
-            print('No DIV inserted')
-        return scaled_data
+        scaler_inlet = self.return_scaler(load_sc=True)[key]
+        array = Val_Data[key]
+        # Retornando todos os valores de Inlet para a escala original 
+        all_cases = [scaler_inlet.inverse_transform(array[n].reshape(1,-1))[...,0]
+                     for n in range(len(array))]
 
+        try:
+            dist = [abs(RND-i[0]) for i in all_cases ]
+            RND = dist.index(min(dist))
+        except:
+            RND = np.random.randint(0,len(all_cases))
+            print("Apenas números, cara!")
+        print("Caso comparado é ", all_cases[RND])
+        suffix = str(all_cases[RND][0])
+
+        # criando dicionário para entrar como dados
+        inp_data = {e:Val_Data[e][RND][np.newaxis, ...] for e in Val_Data.keys()}
+
+        print("Buscando dados originais do caso para comparação...")
+        for dado in os.scandir(self.data_folder):
+            # Verificação pelo arrendondamento dos valores padronizados
+            #   comparados com a string do arrendondamento dos valores
+            #   descritos no nome dos arquivos
+            a = round(all_cases[RND][0], 3);
+            b = round(float(re.findall(self.pattern, dado.name)[0][:-1]), 3)
+            if bool(re.findall(f'^{str(a)}$', str(b))):
+                caso_name = dado.name
+        print("O caso para predição e comparação será:", caso_name)
+        return suffix, caso_name, inp_data
+
+     
     def predict_data_generator(self, model, INPUT_DATA, FILENAME, ORIGIN_DATA):
         """
             File: auxiliar_functions.py
@@ -357,25 +359,25 @@ class TrainingData:
             Summary: Gerar dados de previsão
             Description: Função que salva os dados de previsão e computa
                          a diferença entre o dado real e o dado previsto
-                         INPUT_DATA -> Dicionário com os dados já escalados 
+                         INPUT_DATA -> Dicionário com os dados já escalados
                                        para inserir em model.predict
         """
-
+                                
         print("Gerando dados para previsão")
         scaler_dict = self.return_scaler(load_sc=True)
         print("Carregado padronizadores!")
 
-        # Dados inseridos na predição 
+        # Dados inseridos na predição
         PREDICs = model.predict(INPUT_DATA)
 
-        # Retornando os dados para a escala original do problema para 
+        # Retornando os dados para a escala original do problema para
         # comparação com os dados de simulação
 
         # Nomes das colunas nos dados
         colunas = read_csv(os.scandir(self.data_folder).__next__().path).columns
 
         # Retornando os dados para a escala anterior
-        in_col, out_col = [], [] 
+        in_col, out_col = [], []
         if isinstance(PREDICs, list):
             data_to_concat = []
             for name in INPUT_DATA.keys():
@@ -414,14 +416,15 @@ class TrainingData:
 
         # Diferença do valor previsto e o caso original
         print("Calculando diferença...")
-        ORIGIN_DATA = read_csv(ORIGIN_DATA)
+        ORIGIN_DF = read_csv(ORIGIN_DATA)
 
-        DIFF = SLICE_DATA[out_col] - ORIGIN_DATA[out_col]
+        DIFF = SLICE_DATA[out_col] - ORIGIN_DF[out_col]
 
         RESULT_DATA = concat([DIFF, SLICE_DATA[in_col]], axis=1)
 
         print('Escrevendo dados DIFERENÇA')
-        RESULT_DATA.to_csv(self.save_dir + 'DIFF_SLICE_U_10.csv', index=False)
+        name = re.findall(self.pattern, ORIGIN_DATA.split(self.data_folder)[-1])[0][:-1]
+        RESULT_DATA.to_csv(self.save_dir + f'DIFF_SLICE_U_{name}.csv', index=False)
         print('Dados de diferença copiados!')
 
 
@@ -453,113 +456,6 @@ class TrainingData:
         wall = np.array(wall).reshape(-1, 3)
         return wall
 
-    def organized_data(self, data):
-        """
-            File: auxiliar_functions.py
-            Function Name: organized_data
-            Summary: Extrair dados de forma organizada
-            Description: Usa a magnitude de um vetor da origem à extremidade
-                         e guarda os dados que estão em mesma condição (círculo)
-                         manda para uma lista
-        """
-        # TODO: FALTA CONSERTAR MAGNITUDE PARA QUADRADO NO MEIO
-        # NOTE: Adicionar etapa de verificação de dados, 'np.intersect1d'
-        xz = np.concatenate((data, np.zeros((len(data), 1))), axis=1)
-        # função de magnitude 'atalho'
-        mag = lambda x: np.sqrt(np.sum(np.square(x)))
-
-        # Vetor A de referência
-        A = np.array([np.max(xz[:, 0]), np.mean(xz[:, 1]), 0]) - np.mean(xz, axis=0)
-        arm2 = []
-        MEAN_ORIG = np.mean(xz, axis=0)
-        while mag(A) > 0.1455:
-            arm1 = []
-            for pnt in xz:
-                # vetor B de comparação com A
-                B = pnt - MEAN_ORIG
-                if mag(B) >= 0.97 * mag(A):
-                    # Adicionado um item a mais por causa do vetor velocidade
-                    arm1.append([p for p in pnt])
-                else:
-                    # para manter as mesmas dimensões do mapeamento dos pontos '(868, 3)'
-                    arm1.append([0, 0, 0])
-            arm1 = np.array([np.array(p) for p in arm1])
-            # Interseção dos dados no extremo e dados XZ, indices
-            inter = np.intersect1d(xz[:, 0], arm1[:,0], return_indices=True)[1]
-            # Para manter a dimensão dos arrays, mascarar dados com 0
-            mask = np.ones(xz.shape, dtype=bool)
-            # Mudando valores que identificados para 0
-            mask[list(inter)] = 0
-            NEW_XZ = xz * mask
-
-            xz = NEW_XZ
-            A = np.array([MEAN_ORIG[0], np.max(xz[:, 1:]), 0]) - MEAN_ORIG
-            arm2.append(arm1)
-
-
-    def data_prediction(self, MODEL, INPUT_DATA, FILENAME, NAME='NEW_SLICE_10_Isolated'):
-        """
-            File: auxiliar_functions.py
-            Function Name: data_prediction
-            Summary: Gravar dados preditos
-            Description: Inserir modelo da rede e dados adicionais de entrada
-                         necessários do modelo, como dicionário para a
-                         predição.
-        """
-        scalers = self.return_scaler(load_sc=True)
-
-        # TODO: Verificar a dimensão dos dados de predição
-        #       Devido à futura inserção de novas variáveis
-        PREDICs = MODEL.predict(INPUT_DATA)
-        print([p.shape for p in PREDICs])
-
-        # Para armazenar dados que serão transformados para retornar
-        # às escalas anteriores
-        DATA_DICT = {}
-
-        OUTPUT_NAMES = MODEL.output_names
-        # Retornando os dados para a escala anterior
-        for name in OUTPUT_NAMES:
-            if name in scalers.keys():
-                DATA_DICT[name] = scalers[name].inverse_transform()
-
-        # Transformando em DataFrames do panda para facilitar manipulação
-        U_xyz = [DataFrame(dt, columns=i) for i, dt in DATA_DICT.items()]
-
-        # Dado Original de Velocidade
-        ORIGIN_DATA = read_csv(self.data_folder+FILENAME)
-
-        # Coordenadas
-        XYZ = ORIGIN_DATA[['Points:0', 'Points:1', 'Points:2']]
-
-        # Geração de arquivo .CSV para leitura
-        NEW_FILE = f'{NAME}.csv'
-
-        SLICE_DATA = concat(U_xyz + XYZ, sort=True, axis=1)
-
-        # Escrevendo o header no formato do paraview
-        with open(self.save_dir+NEW_FILE, 'w') as filename:
-            HEADER = ''
-            for col in list(SLICE_DATA.columns):
-                HEADER += '\"' + col + '\",'
-            filename.write(HEADER[:-1])
-            filename.write('\n')
-
-        SLICE_DATA.to_csv(self.save_dir + NEW_FILE, index=False, header=False, mode='a')
-        print("Dados de previsão copiados!")
-
-        # Diferença do valor previsto e o caso original
-        print("Calculando diferença...")
-
-        DIFF = SLICE_DATA[['U:0', 'U:1', 'U:2']] - ORIGIN_DATA[['U:0', 'U:1', 'U:2']]
-
-        RESULT_DATA = concat([DIFF, XYZ], axis=1)
-
-        print('Escrevendo dados DIFERENÇA')
-        RESULT_DATA.to_csv(self.save_dir + 'DIFF_SLICE_U_10.csv', index=False)
-        print('Dados de diferença copiados!')
-
-        return None
 
 
 class NeuralTopology:
@@ -629,7 +525,7 @@ class NeuralTopology:
                          INPUTS e OUTPUTS para gerar camadas com os nomes
                          descritos nas respectivas chaves.
                          --> Usar TrainingData.ORDER para obter os dicionários
-                             de INPUTS e OUTPUTS 
+                             de INPUTS e OUTPUTS
                          É compilado normalmente caso `self.model = Model()`
                          ###>>> GRAFOS ESTÃO DESCONECTADOS!!! (verificação)
         """
@@ -647,11 +543,11 @@ class NeuralTopology:
             # Adicionando as camadas por nome
             for label in INPUTS.keys():
 
-                ###### Usando função re.sub para ajustar nomes as regras de 
+                ###### Usando função re.sub para ajustar nomes as regras de
                 ######  nomes de variáveis do Tensorflow
                 # https://www.tensorflow.org/api_docs/python/tf/Operation
                 # Basicamente, remover caracteres especiais tipo: ':' e ')',
-                # correc_label = re.sub(r'[^A-Za-z0-9.][^A-Za-z0-9_.\-/]*', '_', 
+                # correc_label = re.sub(r'[^A-Za-z0-9.][^A-Za-z0-9_.\-/]*', '_',
                                       # label)
                 correc_label = label
                 in_lyr = Input(shape=(INPUTS[label][1][-1], 1), dtype='float32', name=correc_label)
@@ -682,7 +578,7 @@ class NeuralTopology:
                     X = LAYER_STACK[idx](X)
                 X = LAYER_STACK[-1](X)
             for label in OUTPUTS.keys():
-                # correc_label = re.sub(r'[^A-Za-z0-9.][^A-Za-z0-9_.\-/]*', '_', 
+                # correc_label = re.sub(r'[^A-Za-z0-9.][^A-Za-z0-9_.\-/]*', '_',
                                       # label)
                 lyr = self.type(1, dtype='float32', name=label)(X)
                 OUT_LAYERS.append(lyr)
