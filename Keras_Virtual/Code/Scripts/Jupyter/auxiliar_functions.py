@@ -8,14 +8,16 @@ Description: Funções utilizadas repetidamente durante a implementação.
 import re
 import os
 import numpy as np
+import tensorflow as tf
 from joblib import dump, load
 from pandas import read_csv, concat, DataFrame
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import MinMaxScaler
 from keras import backend as K
-from keras.models import Sequential, Model
-from keras.layers import Dense
-import tensorflow as tf
+from keras.layers import Dense, Input, concatenate
+from keras.models import Sequential
+from keras.callbacks import TensorBoard, EarlyStopping, ReduceLROnPlateau
+from keras.utils import plot_model
 
 
 class TrainingData:
@@ -24,15 +26,24 @@ class TrainingData:
     Author: ShogunHirei
     Description: Script para gerar dados de treinamento para facilitar
                  a scrita do código.
+                 Lembrar que `pattern` precisa ser única para cada `datafile`
+                 e se refere à um dado descrito no nome do arquivo .csv,
+                 e precisa de um caractere a mais para ser eliminado
     """
+    ORDER = []
+    save_dir='./'
+    scaler_folder='./'
+    info_folder='./'
+    pattern=r'\d+\.?\d*_'
 
-    def __init__(self, data_folder, scaler=MinMaxScaler, scaler_dir='./'):
+    def __init__(self, data_folder, scaler=MinMaxScaler):
         self.data_folder = data_folder
         self.scaler = scaler
         self.N_SAMPLES = len(os.listdir(self.data_folder))
-        self.scaler_folder = scaler_dir
 
-    def data_gen(self, test_split=0.2, U_mag=False, load_sc=True, save_sc=False):
+    def data_gen(self, inp_labels=['Inlet_U', 'Points_0', 'Points_2'],
+                 out_labels=['U'], test_split=0.2, mag=['U'],
+                 load_sc=True, seed=891859):
         """
             File: training_data.py
             Function Name: data_gen
@@ -40,67 +51,74 @@ class TrainingData:
             Description: Usar pasta com arquivos .csv e gerar conjuntos
                          de treinamento e teste.
 
-            U_mag -> Insere a magnitude da velocidade nos componentes
+            mag -> None ou Lista das magnitudes que SERÃO INSERIDAS no
+                   conjunto de dados do treinamento
             load_sc -> Se for para carregar os scalers salvos
-            save_sc -> não carregar, criar novos scaler e salvá-los
-
-
+                         (verificação será feita na pasta `scaler_folder`)
         """
 
-        DF = [(read_csv(dado.path), re.findall(r'\d+\.?\d*_', dado.path)[0][:-1])
-              for dado in os.scandir(self.data_folder)]
+        # Gerando {VEL_DE_ENTRADA : Dataframe} para todos os dados dentro da
+        # pasta de dados `data_folder`
+        print("Gerando dados de entrada...")
+        _DF = {float(re.findall(self.pattern,
+                                dado.path)[0][:-1]): read_csv(dado.path)
+               for dado in os.scandir(self.data_folder)}
 
-        XZ = np.array([np.array(sample) for sample in
-                       [dado[0][['Points:0', 'Points:2']] for dado in DF]])
+        # Verificando uniformidade dos dados e organizando em np.arrays
+        # para facilitar manipulação de amostras
+        print("Verificando labels")
+        DATA = self.labels_read(_DF, MAG=mag)
 
-        # Valores de velocidade com o mesmo shape dos outros inputs
-        INPUT_U = np.array([np.array(sample) for sample in
-                            [[float(dado[1])] * len(XZ[0]) for dado in DF]])
+        # Separar dados de input e output
+        print("Separando dados de entrada e saída...")
+        DATA = self.data_filter(DATA, inp_labels, out_labels)
+        # Para que todos os labels sejam inseridas no dicionário 
+        # para realizar a padronização
+        _TMP = DATA[0].copy()
+        _TMP.update(DATA[1])
 
-        # Componentes de velocidade dos pontos (OUTPUT)
-        U_xyz = np.array([np.array(sample) for sample in
-                          [dado[0][['U:0', 'U:1', 'U:2']] for dado in DF]])
-
-        # Convertendo shape das velocidades para ficarem de acordo input de posição
-        INPUT_U = INPUT_U.reshape(XZ.shape[0], XZ.shape[1], 1)
-
-        # Carregando padronizadores
-        scaler_dic = self.return_scaler(load_sc=load_sc, save_sc=save_sc,
-                                        data_input=[XZ, INPUT_U, U_xyz])
-
+        # Carregando normalizadores
+        print("Carregando padronizadores...")
+        scaler_dic = self.return_scaler(load_sc=load_sc, data_input=_TMP)
+        
         # Cada valor do dicionário scaler_dic referencia seu padronizador
         # utilizando isso para escalonar os dados
-        scaled_XZ = np.array([scaler_dic['XZ'].transform(sample) for sample in XZ])
-        scaled_inputU = np.array([scaler_dic['U_in'].transform(sample)
-                                  for sample in INPUT_U])
-        scaled_Ux = np.array(scaler_dic['Ux_scaler'].transform(U_xyz[:, :, 0]))
-        scaled_Uy = np.array(scaler_dic['Uy_scaler'].transform(U_xyz[:, :, 1]))
-        scaled_Uz = np.array(scaler_dic['Uz_scaler'].transform(U_xyz[:, :, 2]))
+        for label in scaler_dic.keys():
+            if label in DATA[0].keys():
+                if bool(re.match("^Points", label)):
+                    DATA[0][label] = np.array([scaler_dic[label].transform(DATA[0][label][n][..., np.newaxis])
+                                               for n in range(len(DATA[0][label]))]).reshape(self.N_SAMPLES,-1)
+                    print(label, DATA[0][label].shape)
+                else:
+                    DATA[0][label] = scaler_dic[label].transform(DATA[0][label])
+                print(label, DATA[0][label].max(), DATA[0][label].min())
+            elif label in DATA[1].keys():
+                DATA[1][label] = scaler_dic[label].transform(DATA[1][label])
+                print(label, DATA[1][label].max(), DATA[1][label].min())
 
         # Liberando espaço na memória
-        del DF, scaler_dic
+        del _DF, _TMP
 
-        # Mudando o shape para adequar ao formato de entrada de 3 dimensões
-        # Concatenando arrays dos componentes de velocidade
-        scaled_Uxyz = np.concatenate((scaled_Ux.reshape(self.N_SAMPLES, -1, 1),
-                                      scaled_Uy.reshape(self.N_SAMPLES, -1, 1),
-                                      scaled_Uz.reshape(self.N_SAMPLES, -1, 1)),
-                                     axis=2)
+        # Para facilitar a consulta da ordem
+        self.ORDER = []
+        # Inputs
+        self.ORDER.append({label: (indx, DATA[0][label].shape[1:])
+                           for indx, label in enumerate(DATA[0].keys())})
+        # Outputs
+        self.ORDER.append({label: (indx, DATA[1][label].shape[1:])
+                           for indx, label in enumerate(DATA[1].keys())})
+        print("ORDER Ready!")
 
-        # Adicionar dados de magnitude caso necessário
-        if U_mag:
-            U_mag_scaled = self.U_mag_data_gen([DataFrame(sample)
-                                                for sample in U_xyz]).reshape(self.N_SAMPLES, -1, 1)
-            scaled_Uxyz = np.concatenate((scaled_Uxyz, U_mag_scaled), axis=2)
+        # Separando os dados dos inputs e outputs da rede
+        X = np.concatenate(tuple([data[..., np.newaxis]
+                                  for data in DATA[0].values()]), axis=2)
+        Y = np.concatenate(tuple([data[..., np.newaxis]
+                                  for data in DATA[1].values()]), axis=2)
 
-        del XZ, INPUT_U, U_xyz
-
-        (X_TRAIN, X_TEST,
-         Y_TRAIN, Y_TEST) = train_test_split(np.concatenate((scaled_XZ,
-                                                             scaled_inputU),
-                                                            axis=2),
-                                             scaled_Uxyz,
-                                             test_size=test_split)
+        print("Gerando dicionário de treinamento...")
+        X_TRAIN, X_TEST, Y_TRAIN, Y_TEST = train_test_split(X, Y,
+                                                            test_size=test_split, 
+                                                            random_state=seed)
 
         print("Shape of X_TRAIN: ", X_TRAIN.shape)
         print("Shape of Y_TRAIN: ", Y_TRAIN.shape)
@@ -109,31 +127,63 @@ class TrainingData:
 
         return (X_TRAIN, X_TEST, Y_TRAIN, Y_TEST)
 
-    def U_mag_data_gen(self, U_xyz, scaler_ld_sv=[0, 0]):
+
+    def training_dict(self, DICT, n):
+        """
+            File: auxiliar_functions.py
+            Function Name: training_dict
+            Summary: Organizar dados para 'fit'
+            Description: Função para gerar dicionário com os nomes dos inputs
+                         e outputs associados aos dados específicos
+                         Utilizando o self.ORDER como referência
+                         n ->  0 (input) ou 1 (output)
+        """
+        TRAINING_DICT = {}
+        for label in self.ORDER[n].keys():
+            # ORDER é uma lista com dois dicionários: Input e Output
+            # Cada chave dos dicionários contem o índice dos dados nos
+            # conjuntos de treinamento e teste e a dimensão
+            TPL = [dim for dim in DICT.shape[:-1]]
+            TPL += [1]
+            TPL = tuple(TPL)
+            TRAINING_DICT[label] = DICT[..., self.ORDER[n][label][0]].reshape(TPL)
+        return TRAINING_DICT
+
+
+    def mag_data_gen(self, labeled_data, pop_labels=['Points']):
         """
             File: training_data.py
-            Function Name: U_mag_data_gen
+            Function Name: mag_data_gen
             Summary: Gerar dados de magnitude da velocidade para concatenação
             Description: Função interna para agregar dados de magnitude
+                         pop_labels -> colunas que terão a sua magnitude
+                                       calculada
         """
 
-        U_mag = [(sample**2).apply(np.sum, axis=1).apply(np.sqrt)
-                 for sample in U_xyz]
-        U_mag = np.array([np.array(sample) for sample in U_mag])
+        vector = {}
+        if pop_labels:
+            if isinstance(pop_labels, list):
+                # Procura por todos os componentes em todas as labels para
+                # identificar as labels seguidas por um número
+                for pop_key in pop_labels:
+                    for label in labeled_data.keys():
+                        vec_str = label.split('_')
+                        if bool(re.match(f'^{pop_key}', label)):
+                            vector[vec_str[0]] = [comp for comp in labeled_data.keys()
+                                                  if re.findall(f'^{vec_str[0]}_\d', comp)]
+                for vec in vector.keys():
+                    try:
+                        vec_mag = np.concatenate(tuple([labeled_data[key][..., np.newaxis]
+                                                  for key in vector[vec]]), axis=2)
+                        labeled_data[f'{vec}_mag'] = np.sqrt(np.sum(vec_mag**2, axis=2))
+                    except:
+                        print("Não consegui calcular as magnitudes! ¯\_(ツ)_/¯")
+            else:
+                print('Apenas lista ou NoneType')
 
-        if scaler_ld_sv[0]:
-            U_mag_scaler = load(self.scaler_folder+'U_mag_scaler.joblib')
-        else:
-            U_mag_scaler = self.scaler().fit(U_mag)
+        return None
 
-        if scaler_ld_sv[1]:
-            dump(U_mag_scaler, self.scaler_folder+'U_mag_scaler.joblib')
-
-        U_mag_scaled = U_mag_scaler.transform(U_mag)
-
-        return U_mag_scaled
-
-    def return_scaler(self, load_sc=True, save_sc=False, data_input=None):
+    def return_scaler(self, load_sc=True, data_input=None):
         """
             File: auxiliar_functions.py
             Function Name: return_scaler
@@ -142,35 +192,255 @@ class TrainingData:
                          serem reutilizados de outras formas além da geração
                          do conjunto de dados de treinamento e teste
         """
+        # Considerando que `data_input` igual `labels` de self.labels_read
+        SCALER_DICT = {}
 
         if load_sc:
-            XZ_scaler = load(self.scaler_folder+'points_scaler.joblib')
-            INPUT_U_scaler = load(self.scaler_folder+'U_input_scaler.joblib')
-            Ux_scaler = load(self.scaler_folder+'Ux_scaler.joblib')
-            Uy_scaler = load(self.scaler_folder+'Uy_scaler.joblib')
-            Uz_scaler = load(self.scaler_folder+'Uz_scaler.joblib')
+            if data_input:
+                for label in data_input.keys():
+                    SCALER_DICT[label] = load(f'{self.scaler_folder+label}.joblib')
+            else:
+                for fn in os.scandir(self.scaler_folder):
+                    if bool(re.match(f'\w*.joblib$', fn.name)):
+                        SCALER_DICT[fn.name.split('.joblib')[0]] = load(f'{fn.path}')
         else:
-            XZ = data_input[0]
-            INPUT_U = data_input[1]
-            U_xyz = data_input[2]
-            XZ_scaler = self.scaler().fit(XZ[0])
-            INPUT_U_scaler = self.scaler().fit(INPUT_U[:, 0])
-            Ux_scaler = self.scaler().fit(U_xyz[..., 0])
-            Uy_scaler = self.scaler().fit(U_xyz[..., 1])
-            Uz_scaler = self.scaler().fit(U_xyz[..., 2])
-
-        if save_sc:
-            dump(XZ_scaler, self.scaler_folder+'points_scaler.joblib')
-            dump(INPUT_U_scaler, self.scaler_folder+'U_input_scaler.joblib')
-            dump(Ux_scaler, self.scaler_folder+'Ux_scaler.joblib')
-            dump(Uy_scaler, self.scaler_folder+'Uy_scaler.joblib')
-            dump(Uz_scaler, self.scaler_folder+'Uz_scaler.joblib')
-
-        SCALER_DICT = {'XZ': XZ_scaler, 'U_in': INPUT_U_scaler,
-                       'Ux_scaler': Ux_scaler, 'Uy_scaler': Uy_scaler,
-                       'Uz_scaler': Uz_scaler}
+            for label in data_input.keys():
+                print(label, data_input[label].shape, data_input[label].min(), data_input[label].max())
+                if bool(re.match(f'^Points', label)):
+                    # Cosiderando que a normalização será feita no plano 
+                    SCALER_DICT[label] = self.scaler().fit(data_input[label][..., np.newaxis][0])
+                else:
+                    SCALER_DICT[label] = self.scaler().fit(data_input[label])
+                dump(SCALER_DICT[label], f'{self.scaler_folder+label}.joblib')
 
         return SCALER_DICT
+
+
+    def data_filter(self, data, inputs, outputs):
+        """
+            File: auxiliar_functions.py
+            Function Name: data_filter
+            Summary: Separar inputs e outputs da rede
+            Description: Gerar tupla (X, Y) com as amostras de treinamento
+                         e organizar para inserir em `train_test_split`
+        """
+        # Considerando que `data` é um dicionário com os dados
+        # no qual as chaves são as propriedades e os valores é o conjunto de amostras
+        X = {}
+        Y = {}
+        for label in data.keys():
+            for entry in inputs:
+                if re.findall("^"+entry, label):
+                    X[label] = data[label]
+            for entry in outputs:
+                if re.findall("^"+entry, label):
+                    Y[label] = data[label]
+        print('Inputs:', " ".join(X.keys()))
+        print('Outputs: ', " ".join(Y.keys()))
+        # Dados não incluídos
+        NI = set(data.keys()) - set(Y.keys()) - set(X.keys())
+        if NI:
+            print(", ".join(NI) +" not included!")
+        data = (X, Y)
+        return data
+
+    def labels_read(self, sample_data, MAG=False):
+        """
+            File: auxiliar_functions.py
+            Function Name: labels_read
+            Summary: Ler todas as colunas
+            Description: Função que lê todas as entradas e retorna os dados
+                         organizados de acordo com os nomes das colunas.
+        """
+        labels = {}
+        try:
+            # Considerando que `sample_data` tenha a mesma estrutura que
+            # `_DF`, ou seja, um dicionário com chaves {'Vel': DataFrame}
+            # Verificar primeiro se todos os dados possuem as mesmas colunas
+            check = all([(sample_data[i].columns == sample_data[j].columns).all()
+                         for i in sample_data.keys() for j in sample_data.keys()])
+            print("Dados Uniformes!")
+            if check:
+                # Usando todas as colunas dos dados para gerar dicionário
+                # separados por colunas
+                Inlet_U = []
+                # Para garantir que os dados estarâo ordenados
+                zipped_data = list(sample_data.items())
+                # Velocidade na entrada
+                for VEL in [key[0] for key in zipped_data]:
+                    # Todas as chaves são as velocidades de entrada
+                    Inlet_U.append([VEL]*sample_data[VEL].shape[-2])
+                labels['Inlet_U'] = np.array(Inlet_U)
+
+                # As colunas dos dados (propriedades) dentro das amostras
+                print("Elaborando colunas e corrigindo nomes...")
+                for label in zipped_data[0][1].columns:
+                    # Selecionando os dados de acordo com os DataFrames
+                    # organizados em `zipped_data`
+                    # Corrigindo a label
+                    arr = np.array([sample[label] for sample in [data[1]
+                                                    for data in zipped_data]])
+                    label = re.sub(r'[^A-Za-z0-9.][^A-Za-z0-9_.\-/]*', '_',
+                                      label)
+                    labels[label] = arr
+                if MAG:
+                    self.mag_data_gen(labels, pop_labels=MAG)
+                    print("Magnitudes calculadas")
+
+                # TODO: Verificar possível utiilzação do Dataframe para essa organização
+        except UnicodeDecodeError:
+            print("""Cheque pasta com dados! Deve conter apenas arquivos .csv com
+                    dados (colunas idênticas) para conjunto de treinamento""")
+        except:
+            print("Data is not uniform for separation!")
+        return labels
+
+
+    def list_callbacks(self, DIR, monit='val_loss'):
+        """
+            File: auxiliar_functions.py
+            Function Name: list_callbacks
+            Summary: Criar lista de callbacks comuns
+            Description: Criar callback para Tensorboard entre outros
+                         monit -> string para mudar variável observada para
+                                  função loss
+        """
+        # Criando Callbacks para o treinamento
+        CALLBACKS = [
+                     # Tensorboard
+                     TensorBoard(log_dir=DIR, histogram_freq=100, write_grads=False,
+                                 write_images=False),
+                     # Interromper Treinamento
+                     EarlyStopping(monitor=monit, min_delta=0.00001, patience=175,
+                                   restore_best_weights=True),
+                     # Reduzir taxa de aprendizagem
+                     ReduceLROnPlateau(monitor=monit, factor=0.1, patience=70, verbose=1,
+                                       min_lr=1E-10)
+                    ]
+        return CALLBACKS
+
+
+    
+    def pickup_data(self, Val_Data, RND=None, key='Inlet_U'):
+        """
+            File: auxiliar_functions.py
+            Function Name: pickup_data
+            Summary: Preparar dados de input para previsão
+            Description: Preparar dados que serão utilizados na previsão
+                         Val_Data --> DICIONÁRIO com os dados de validação
+                         RND --> Se None ou False usar valor aleatório
+                                 se for especificado, será buscado o valor mais 
+                                    próximo a ele no banco de dados
+                         key --> chave que será usada para diferenciar entre os 
+                                 dados
+                         return suffix (str), caso_name (str), inp_data (dict)
+        """
+        scaler_inlet = self.return_scaler(load_sc=True)[key]
+        array = Val_Data[key]
+        # Retornando todos os valores de Inlet para a escala original 
+        all_cases = [scaler_inlet.inverse_transform(array[n].reshape(1,-1))[...,0]
+                     for n in range(len(array))]
+
+        try:
+            dist = [abs(RND-i[0]) for i in all_cases ]
+            RND = dist.index(min(dist))
+        except:
+            RND = np.random.randint(0,len(all_cases))
+            print("Apenas números, cara!")
+        print("Caso comparado é ", all_cases[RND])
+        suffix = str(all_cases[RND][0])
+
+        # criando dicionário para entrar como dados
+        inp_data = {e:Val_Data[e][RND][np.newaxis, ...] for e in Val_Data.keys()}
+
+        print("Buscando dados originais do caso para comparação...")
+        for dado in os.scandir(self.data_folder):
+            # Verificação pelo arrendondamento dos valores padronizados
+            #   comparados com a string do arrendondamento dos valores
+            #   descritos no nome dos arquivos
+            a = round(all_cases[RND][0], 3);
+            b = round(float(re.findall(self.pattern, dado.name)[0][:-1]), 3)
+            if bool(re.findall(f'^{str(a)}$', str(b))):
+                caso_name = dado.name
+        print("O caso para predição e comparação será:", caso_name)
+        return suffix, caso_name, inp_data
+
+     
+    def predict_data_generator(self, model, INPUT_DATA, FILENAME, ORIGIN_DATA):
+        """
+            File: auxiliar_functions.py
+            Function Name: predict_data_generator
+            Summary: Gerar dados de previsão
+            Description: Função que salva os dados de previsão e computa
+                         a diferença entre o dado real e o dado previsto
+                         INPUT_DATA -> Dicionário com os dados já escalados
+                                       para inserir em model.predict
+        """
+                                
+        print("Gerando dados para previsão")
+        scaler_dict = self.return_scaler(load_sc=True)
+        print("Carregado padronizadores!")
+
+        # Dados inseridos na predição
+        PREDICs = model.predict(INPUT_DATA)
+
+        # Retornando os dados para a escala original do problema para
+        # comparação com os dados de simulação
+
+        # Nomes das colunas nos dados
+        colunas = read_csv(os.scandir(self.data_folder).__next__().path).columns
+
+        # Retornando os dados para a escala anterior
+        in_col, out_col = [], []
+        if isinstance(PREDICs, list):
+            data_to_concat = []
+            for name in INPUT_DATA.keys():
+                # Substituir o "_" por uma regex para bater com os nomes das colunas
+                col = [key for key in colunas if bool(re.match(f"^{name.replace('_', '[:_]')}$", key))]
+                if bool(col):
+                    in_col.append(col[0])
+                    arr = scaler_dict[name].inverse_transform(INPUT_DATA[name].reshape(1, -1))
+                    data_to_concat.append(DataFrame(arr.reshape(-1), columns=col))
+            for name in self.ORDER[1].keys():
+                col = [key for key in colunas if bool(re.match(f"^{name.replace('_', '[:_]')}$", key))]
+                if bool(col):
+                    out_col.append(col[0])
+                    # ORDER[1] é o dicionário dos outputs que contém
+                    # uma tupla com o indice e o shape do output
+                    pred_arr = PREDICs[self.ORDER[1][name][0]].reshape(1,-1)
+                    arr = scaler_dict[name].inverse_transform(pred_arr)
+                    data_to_concat.append(DataFrame(arr.reshape(-1), columns=col))
+
+        print(f"Inputs = {in_col}")
+        print(f"Outputs = {out_col}")
+
+        # Geração de arquivo .CSV para leitura
+        SLICE_DATA = concat(data_to_concat, sort=True, axis=1)
+
+        # Escrevendo o header no formato do paraview
+        with open(self.save_dir+FILENAME, 'w') as filename:
+            HEADER = ''
+            for col in list(SLICE_DATA.columns):
+                HEADER += '\"' + col + '\",'
+            filename.write(HEADER[:-1])
+            filename.write('\n')
+
+        SLICE_DATA.to_csv(self.save_dir + FILENAME, index=False, header=False, mode='a')
+        print("Dados de previsão copiados!")
+
+        # Diferença do valor previsto e o caso original
+        print("Calculando diferença...")
+        ORIGIN_DF = read_csv(ORIGIN_DATA)
+
+        DIFF = SLICE_DATA[out_col] - ORIGIN_DF[out_col]
+
+        RESULT_DATA = concat([DIFF, SLICE_DATA[in_col]], axis=1)
+
+        print('Escrevendo dados DIFERENÇA')
+        name = re.findall(self.pattern, ORIGIN_DATA.split(self.data_folder)[-1])[0][:-1]
+        RESULT_DATA.to_csv(self.save_dir + f'DIFF_SLICE_U_{name}.csv', index=False)
+        print('Dados de diferença copiados!')
+
 
     def wall_data(self, XZ_DATA):
         """
@@ -199,110 +469,6 @@ class TrainingData:
                 wall.append(np.array([0, 0, 0]))
         wall = np.array(wall).reshape(-1, 3)
         return wall
-
-    def organized_data(self, data):
-        """
-            File: auxiliar_functions.py
-            Function Name: organized_data
-            Summary: Extrair dados de forma organizada
-            Description: Usa a magnitude de um vetor da origem à extremidade
-                         e guarda os dados que estão em mesma condição (círculo)
-                         manda para uma lista
-        """
-        # TODO: FALTA CONSERTAR MAGNITUDE PARA QUADRADO NO MEIO
-        # NOTE: Adicionar etapa de verificação de dados, 'np.intersect1d'
-        xz = np.concatenate((data, np.zeros((len(data), 1))), axis=1)
-        # função de magnitude 'atalho'
-        mag = lambda x: np.sqrt(np.sum(np.square(x)))
-
-        # Vetor A de referência
-        A = np.array([np.max(xz[:, 0]), np.mean(xz[:, 1]), 0]) - np.mean(xz, axis=0)
-        arm2 = []
-        MEAN_ORIG = np.mean(xz, axis=0)
-        while mag(A) > 0.1455:
-            arm1 = []
-            for pnt in xz:
-                # vetor B de comparação com A
-                B = pnt - MEAN_ORIG
-                if mag(B) >= 0.97 * mag(A):
-                    # Adicionado um item a mais por causa do vetor velocidade
-                    arm1.append([p for p in pnt])
-                else:
-                    # para manter as mesmas dimensões do mapeamento dos pontos '(868, 3)'
-                    arm1.append([0, 0, 0])
-            arm1 = np.array([np.array(p) for p in arm1])
-            # Interseção dos dados no extremo e dados XZ, indices
-            inter = np.intersect1d(xz[:, 0], arm1[:,0], return_indices=True)[1]
-            # Para manter a dimensão dos arrays, mascarar dados com 0
-            mask = np.ones(xz.shape, dtype=bool)
-            # Mudando valores que identificados para 0
-            mask[list(inter)] = 0
-            NEW_XZ = xz * mask
-
-            xz = NEW_XZ
-            A = np.array([MEAN_ORIG[0], np.max(xz[:, 1:]), 0]) - MEAN_ORIG
-            arm2.append(arm1)
-
-
-    def data_prediction(self, MODEL, DATA_MAP, VEL=10):
-        """
-            File: auxiliar_functions.py
-            Function Name: data_prediction
-            Summary: Gravar dados preditos
-            Description: Inserir mapeamento e velocidade de entrada para
-                         a previsão dos dados.
-        """
-        scalers = self.return_scaler(load_sc=True)
-        VEL_ARR = np.array([[VEL]*DATA_MAP.shape[-2]]).reshape(-1, 1)
-        VEL_ARR = scalers['U_in'].transform(VEL_ARR).reshape(1, -1, 1)
-
-        # TODO: Verificar a dimensão dos dados de predição
-        #       Devido à futura inserção de novas variáveis
-        PREDICs = MODEL.predict({'XZ_input': DATA_MAP, 'U_entr': VEL_ARR})
-
-        # Retornando os dados para a escala anterior
-        U_xyz = [scalers['Ux_scaler'].inverse_transform(PREDICs[..., 0]).reshape(-1),
-                 scalers['Uy_scaler'].inverse_transform(PREDICs[..., 1]).reshape(-1),
-                 scalers['Uz_scaler'].inverse_transform(PREDICs[..., 2]).reshape(-1)]
-
-        # Transformando em DataFrames do panda para facilitar manipulação
-        U_xyz = [DataFrame(dt, columns=f'U:{i}') for i, dt in enumerate(U_xyz)]
-
-        # Dado Original de Velocidade
-        ORIGIN_DATA = read_csv(self.data_folder+'SLICE_DATA_U_10_0.csv')
-
-        # Coordenadas
-        XYZ = ORIGIN_DATA[['Points:0', 'Points:1', 'Points:2']]
-
-        # Geração de arquivo .CSV para leitura
-        FILENAME = f'NEW_SLICE_10_Isolated.csv'
-
-        SLICE_DATA = concat(U_xyz + XYZ, sort=True, axis=1)
-
-        # Escrevendo o header no formato do paraview
-        with open(self.scaler_dir+FILENAME, 'w') as filename:
-            HEADER = ''
-            for col in list(SLICE_DATA.columns):
-                HEADER += '\"' + col + '\",'
-            filename.write(HEADER[:-1])
-            filename.write('\n')
-
-        SLICE_DATA.to_csv(self.scaler_dir + FILENAME, index=False, header=False, mode='a')
-        print("Dados de previsão copiados!")
-
-        # Diferença do valor previsto e o caso original
-        print("Calculando diferença...")
-
-        DIFF = SLICE_DATA[['U:0', 'U:1', 'U:2']] - ORIGIN_DATA[['U:0', 'U:1', 'U:2']]
-
-        RESULT_DATA = concat([DIFF, XYZ], axis=1)
-
-        print('Escrevendo dados DIFERENÇA')
-        RESULT_DATA.to_csv(self.scaler_dir + 'DIFF_SLICE_U_10.csv', index=False)
-        print('Dados de diferença copiados!')
-
-        return None
-
 
 
 
@@ -363,16 +529,80 @@ class NeuralTopology:
         return self.model
 
 
-    def add_net_layers(self, qnt_layer=5, activation=['tanh'], dropout=0.0):
+
+    def multi_In_Out(self, INPUTS, OUTPUTS, LAYER_STACK=[], ADD_DENSE=True):
         """
             File: auxiliar_functions.py
-            Function Name: add_net_layers
-            Summary: Adicionar camadas em modelo
-            Description: Para um modelo 'model' adicionar uma quantidade de
-                         especificadas de camadas para determinadas
+            Function Name:  multi_In_Out
+            Summary: Criar camadas de input e output
+            Description: APENAS PARA REDES TIPO MODEL, usar os 'dicionários'
+                         INPUTS e OUTPUTS para gerar camadas com os nomes
+                         descritos nas respectivas chaves.
+                         --> Usar TrainingData.ORDER para obter os dicionários
+                             de INPUTS e OUTPUTS
+                         É compilado normalmente caso `self.model = Model()`
+                         ###>>> GRAFOS ESTÃO DESCONECTADOS!!! (verificação)
         """
+        # Para armazenamento das camadas
+        INP_LAYERS = []
+        TO_CONC = []
+        OUT_LAYERS = []
 
-    def set_result(self, filename):
+        # Para inicializar LAYER_STACK
+        if not LAYER_STACK:
+            LAYER_STACK.append(self.type(self.layer0, activation=self.ACTIVATION))
+
+        if type(self.model) != type(Sequential):
+            print('Tipo de rede ok!')
+            # Adicionando as camadas por nome
+            for label in INPUTS.keys():
+
+                ###### Usando função re.sub para ajustar nomes as regras de
+                ######  nomes de variáveis do Tensorflow
+                # https://www.tensorflow.org/api_docs/python/tf/Operation
+                # Basicamente, remover caracteres especiais tipo: ':' e ')',
+                # correc_label = re.sub(r'[^A-Za-z0-9.][^A-Za-z0-9_.\-/]*', '_',
+                                      # label)
+                correc_label = label
+                in_lyr = Input(shape=(INPUTS[label][1][-1], 1), dtype='float32', name=correc_label)
+                # Se é necessário adicionar uma camada densa para corrigir as
+                # dimensões do neurônio
+                if ADD_DENSE:
+                    lyr = self.type(self.layer0, activation=self.ACTIVATION)(in_lyr)
+                    TO_CONC.append(lyr)
+                INP_LAYERS.append(in_lyr)
+            # Concatenando todas as entradas
+            if len(INP_LAYERS)>1:
+                # Caso exista apenas uma entrada
+                if not TO_CONC:
+                    JOINED_LYRS = concatenate(INP_LAYERS, axis=-1)
+                else:
+                    JOINED_LYRS = concatenate(TO_CONC, axis=-1)
+            else:
+                if bool(INP_LAYERS):
+                    JOINED_LYRS = INP_LAYERS[0]
+                else:
+                    print("No Inputs! Are you nuts?")
+            # TODO: Verificar como chamar um agrupamento de camadas aqui
+            # ---> SUGEST: USAR LISTA COM AS CAMADAS E CHAMAR POR ELEMENTO
+            X = LAYER_STACK[0](JOINED_LYRS)
+            # LAYER_STACK DEVE SER UMA LISTA DE OBJETOS DE LAYERS
+            if len(LAYER_STACK) > 1:
+                for idx in range(1, len(LAYER_STACK)-1):
+                    X = LAYER_STACK[idx](X)
+                X = LAYER_STACK[-1](X)
+            for label in OUTPUTS.keys():
+                # correc_label = re.sub(r'[^A-Za-z0-9.][^A-Za-z0-9_.\-/]*', '_',
+                                      # label)
+                lyr = self.type(1, dtype='float32', name=label)(X)
+                OUT_LAYERS.append(lyr)
+        else:
+            print('APENAS PARA REDES TIPO Model!')
+
+        return INP_LAYERS, OUT_LAYERS
+
+
+    def set_info(self, MODEL, filename):
         """
             File: auxiliar_functions.py
             Function Name: set_result
@@ -380,11 +610,14 @@ class NeuralTopology:
             Description: Usar a função recursiva para persistir a configuração
                          da rede.
         """
-        with open(filename, 'w') as fn:
-            rec_function(self.model.get_config(), fn)
+        print("Inserindo imagem do modelo...")
+        plot_model(MODEL, to_file=filename+'.png', show_shapes=True)
+        print("Gravando informações sobre arquitetura...")
+        with open(filename+'.txt', 'w') as fn:
+            rec_function(MODEL.get_config(), fn)
+            MODEL.summary(print_fn=lambda x: fn.write(x + '\n'))
         print('Done!')
         return None
-
 
 
 def rec_function(dic, logfile):

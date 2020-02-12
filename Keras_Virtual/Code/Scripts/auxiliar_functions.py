@@ -42,8 +42,8 @@ class TrainingData:
         self.N_SAMPLES = len(os.listdir(self.data_folder))
 
     def data_gen(self, inp_labels=['Inlet_U', 'Points_0', 'Points_2'],
-                 out_labels=['U'], test_split=0.2, mag=['Points'],
-                 load_sc=True):
+                 out_labels=['U'], test_split=0.2, mag=['U'],
+                 load_sc=True, seed=891859):
         """
             File: training_data.py
             Function Name: data_gen
@@ -51,11 +51,10 @@ class TrainingData:
             Description: Usar pasta com arquivos .csv e gerar conjuntos
                          de treinamento e teste.
 
-            mag -> None ou Lista das magnitudes que NÃO SERÃO INSERIDAS no
+            mag -> None ou Lista das magnitudes que SERÃO INSERIDAS no
                    conjunto de dados do treinamento
             load_sc -> Se for para carregar os scalers salvos
                          (verificação será feita na pasta `scaler_folder`)
-            save_sc -> não carregar, criar novos scaler e salvá-los
         """
 
         # Gerando {VEL_DE_ENTRADA : Dataframe} para todos os dados dentro da
@@ -73,20 +72,29 @@ class TrainingData:
         # Separar dados de input e output
         print("Separando dados de entrada e saída...")
         DATA = self.data_filter(DATA, inp_labels, out_labels)
+        # Para que todos os labels sejam inseridas no dicionário 
+        # para realizar a padronização
         _TMP = DATA[0].copy()
         _TMP.update(DATA[1])
 
         # Carregando normalizadores
         print("Carregando padronizadores...")
         scaler_dic = self.return_scaler(load_sc=load_sc, data_input=_TMP)
-
+        
         # Cada valor do dicionário scaler_dic referencia seu padronizador
         # utilizando isso para escalonar os dados
         for label in scaler_dic.keys():
             if label in DATA[0].keys():
-                DATA[0][label] = scaler_dic[label].transform(DATA[0][label])
+                if bool(re.match("^Points", label)):
+                    DATA[0][label] = np.array([scaler_dic[label].transform(DATA[0][label][n][..., np.newaxis])
+                                               for n in range(len(DATA[0][label]))]).reshape(self.N_SAMPLES,-1)
+                    print(label, DATA[0][label].shape)
+                else:
+                    DATA[0][label] = scaler_dic[label].transform(DATA[0][label])
+                print(label, DATA[0][label].max(), DATA[0][label].min())
             elif label in DATA[1].keys():
                 DATA[1][label] = scaler_dic[label].transform(DATA[1][label])
+                print(label, DATA[1][label].max(), DATA[1][label].min())
 
         # Liberando espaço na memória
         del _DF, _TMP
@@ -109,7 +117,8 @@ class TrainingData:
 
         print("Gerando dicionário de treinamento...")
         X_TRAIN, X_TEST, Y_TRAIN, Y_TEST = train_test_split(X, Y,
-                                                            test_size=test_split)
+                                                            test_size=test_split, 
+                                                            random_state=seed)
 
         print("Shape of X_TRAIN: ", X_TRAIN.shape)
         print("Shape of Y_TRAIN: ", Y_TRAIN.shape)
@@ -196,7 +205,12 @@ class TrainingData:
                         SCALER_DICT[fn.name.split('.joblib')[0]] = load(f'{fn.path}')
         else:
             for label in data_input.keys():
-                SCALER_DICT[label] = self.scaler().fit(data_input[label])
+                print(label, data_input[label].shape, data_input[label].min(), data_input[label].max())
+                if bool(re.match(f'^Points', label)):
+                    # Cosiderando que a normalização será feita no plano 
+                    SCALER_DICT[label] = self.scaler().fit(data_input[label][..., np.newaxis][0])
+                else:
+                    SCALER_DICT[label] = self.scaler().fit(data_input[label])
                 dump(SCALER_DICT[label], f'{self.scaler_folder+label}.joblib')
 
         return SCALER_DICT
