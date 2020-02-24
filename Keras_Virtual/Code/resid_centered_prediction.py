@@ -20,11 +20,13 @@ from datetime import datetime
 
 # Carregando dados para Treinamento
 ANN_FOLDER = sys.argv[1]
+FOLD = sys.argv[2]
+EVAL_CASE = sys.argv[3]
              
 # Criando diretório para operações de gravação
 # Gerando pastas para armazenar os dados
 NOW = datetime.now()
-BASE_DIR = './Models/Refined_Data/Optimization/' + NOW.strftime("%Y%m%d-%H%M%S") + '/'
+BASE_DIR = FOLD + NOW.strftime("%Y%m%d-%H%M%S") + '/'
 SCALER_FOLDER = BASE_DIR + 'Scalers/'
 INFO_DIR = BASE_DIR + 'Info/' 
 os.mkdir(BASE_DIR)
@@ -38,10 +40,11 @@ DATA.save_dir = BASE_DIR
 DATA.info_folder = INFO_DIR
 
 # Dados de treinamento
+print("=".rjust(35,'=') + ' TRAINING ' + '='.ljust(35, '='))
 X_TRAIN, X_TEST, Y_TRAIN, Y_TEST = DATA.data_gen(test_split=0.20,
-                                                 # inp_labels=['Point', 'Inlet'],
+                                                 inp_labels=['Points', 'Inlet'],
                                                  out_labels=['U', 'div', 'Res'],
-                                                 mag=['U'],
+                                                 mag=[],
                                                  load_sc=False,)
 
 # Implemetando swish activation function
@@ -60,43 +63,42 @@ def swish(x, beta=1):
 
 
 # Criando modelo de rede
-tpl = NeuralTopology(MODEL=Model(), init_lyr=128) 
+tpl = NeuralTopology(MODEL=Model(), init_lyr=64) 
 
-DEEP = 3
+DEEP = 4
 
-AUTO_ENCODER_STACK = [Dense(int(tpl.layer0*3**(-i*0.9)),
-                            kernel_initializer='he_normal', activation=swish) 
-                      for i in range(DEEP) if i<=DEEP//2]
-AUTO_ENCODER_STACK += [Dense(int(tpl.layer0*3**((i-DEEP)*0.9)), 
-                             kernel_initializer='he_normal', activation=swish)
-                       for i in range(DEEP) if i>=DEEP//2 ]
+# AUTO_ENCODER_STACK = [Dense(int(tpl.layer0*3**(-i*0.9)),
+                            # kernel_initializer='he_normal', activation=swish) 
+                      # for i in range(DEEP) if i<=DEEP//2]
+# AUTO_ENCODER_STACK += [Dense(int(tpl.layer0*3**((i-DEEP)*0.9)), 
+                             # kernel_initializer='he_normal', activation=swish)
+                       # for i in range(DEEP) if i>=DEEP//2 ]
+
+AUTO_ENCODER_STACK = tpl.layer_stack_creation(DEEP, tpl.layer0, [2, 0.7])
 
 for lyr in AUTO_ENCODER_STACK:
     if isinstance(lyr, Dense):
         AUTO_ENCODER_STACK.insert(AUTO_ENCODER_STACK.index(lyr)+1, BatchNormalization())
 
-print("AUTO_ENCODER_STACK -->", AUTO_ENCODER_STACK)
-
+# print("AUTO_ENCODER_STACK -->", AUTO_ENCODER_STACK)
 
 nets = tpl.multi_In_Out(DATA.ORDER[0], DATA.ORDER[1], 
                         # Criando hidden layers
                         LAYER_STACK = AUTO_ENCODER_STACK,
-                        # Se adicionar mais uma camada densa para corrigir 
-                        # dimensões
-                        ADD_DENSE=False)
+                        ADD_DENSE=False, MASKING=-101.0)
 
 model = Model(inputs=nets[0], outputs=nets[1])
 
 # Definindo optimizer
 # opt = optimizers.SGD(lr=0.01, momentum= 0.01, decay=0.01, nesterov=True)
-opt = optimizers.RMSprop()
+opt = optimizers.Adamax()
 
 # Compilando modelo
 model.compile(optimizer=opt, loss={'U_0':'mae','U_1':'mae','U_2':'mae',
                                    'Res_0':'mse','Res_1':'mse','Res_2':'mse',                         
-                                   'div_phi_':'logcosh', 'U_mag':'mse'},                              
-             loss_weights={'U_0':0.1,'U_1':0.5,'U_2':0.9, 'div_phi_':0.1,                            
-                           'U_mag':0.3,'Res_0':0.1,'Res_1':0.1,'Res_2':0.1,})
+                                    },                              
+             loss_weights={'U_0':0.1,'U_1':0.5,'U_2':0.9,
+                           'Res_0':0.1,'Res_1':0.1,'Res_2':0.1,})
 
 print("Modelo Compilado!")
 
@@ -113,7 +115,7 @@ V_Y = DATA.training_dict(Y_TEST, 1)
 # Lista de Callbacks completa
 CBCK = DATA.list_callbacks(BASE_DIR)
 
-history = model.fit(X, Y, validation_data=(V_X, V_Y), batch_size=40, epochs=500,
+history = model.fit(X, Y, validation_data=(V_X, V_Y), batch_size=64, epochs=50,
                     callbacks=CBCK)
 
 print("Salvando modelo para futuro treinamento")
@@ -125,11 +127,38 @@ dump(history, BASE_DIR + 'history_object.joblib')
 
 print("Inserindo dados de previsão...")
 
-print("Determinando os valores de Inlet para todos os casos")
-suffix, caso_name, inp_data = DATA.pickup_data(V_X, RND=10.0)
+# print("Determinando os valores de Inlet para todos os casos")
+# suffix, caso_name, inp_data = DATA.pickup_data(V_X, RND=10.0)
 
-DATA.predict_data_generator(model, inp_data, f'slice_data_{suffix}.csv',
-                            DATA.data_folder+caso_name)
+# DATA.predict_data_generator(model, inp_data, f'slice_data_{suffix}.csv',
+                            # DATA.data_folder+caso_name)
+
+print("=".rjust(35,'=') + 'VALIDATION' + '='.ljust(35, '='))
+EVAL = TrainingData(EVAL_CASE)
+EVAL.save_dir = DATA.save_dir
+EVAL.scaler_folder = DATA.scaler_folder
+
+# Gerar resultados a partir de diretório com 74 planos
+INPs, OUTs = EVAL.data_gen(inp_labels=['Points','Inlet'],
+                           out_labels=['U', 'Res'],
+                           mag=[],
+                           # são utilizados os mesmos normalizadores para o
+                           #  treinado, e com EVAL=True os dados não divididos
+                           #  retornando apenas os arrays de inputs e outputs
+                           load_sc=True, EVAL=True)
+
+# Gerando lista de dicionários para serem inseridas em diretamente em model.predict
+PRE_INP = [EVAL.training_dict(INPs[p][np.newaxis], 0) for p in range(len(INPs))];
+
+# Função que chama model predict para todos os planos em PRE_INP
+final_dataframe = DATA.batch_prediction(model, PRE_INP, EVAL.ORDER)
+
+# Nome apenas para identificação 
+name = str(list(set(final_dataframe['Inlet_U']))[0])
+
+# Salvando full grid data
+print('Salvando dados em:', EVAL.save_dir)
+final_dataframe.to_csv(EVAL.save_dir + f'full_grid_prediction_{name}.csv', index=False)
 
 print('FIM!! \o/')
 
