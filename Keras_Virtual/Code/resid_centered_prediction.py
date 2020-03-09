@@ -14,6 +14,7 @@ from keras.regularizers import l1, l2
 from keras import optimizers
 from keras.backend import sigmoid
 from keras.layers import BatchNormalization
+from sklearn.preprocessing import MaxAbsScaler
 from Scripts.auxiliar_functions import TrainingData, NeuralTopology
 from joblib import dump
 from datetime import datetime
@@ -34,7 +35,7 @@ os.mkdir(SCALER_FOLDER)
 os.mkdir(INFO_DIR)
 
 # Geração de Conjunto de treinamento e teste
-DATA = TrainingData(ANN_FOLDER)
+DATA = TrainingData(ANN_FOLDER, FACTOR=5283.80102, scaler=MaxAbsScaler)
 DATA.scaler_folder = SCALER_FOLDER
 DATA.save_dir = BASE_DIR
 DATA.info_folder = INFO_DIR
@@ -47,8 +48,24 @@ X_TRAIN, X_TEST, Y_TRAIN, Y_TEST = DATA.data_gen(test_split=0.20,
                                                  mag=[],
                                                  load_sc=False,)
 
-# Implemetando swish activation function
+# Gerador para lidar com dados que não cabem na memória
+def generator(dict_x,dict_y, batch_size, samples):
+    low = 0
+    high = batch_size
+    while True:
+        if high+batch_size < samples:
+            low = high
+            high += batch_size
+            new_dict1 = {a:e[low:high] for a,e in dict_x.items()}
+            new_dict2 = {a:e[low:high] for a,e in dict_y.items()}
+            yield new_dict1, new_dict2
+        else:
+            high = samples
+            new_dict1 = {a:e[low:high] for a,e in dict_x.items()}
+            new_dict2 = {a:e[low:high] for a,e in dict_y.items()}
+            yield new_dict1, new_dict2
 
+# Implemetando swish activation function
 def swish(x, beta=1):
     """
         File: resid_centered_prediction.py
@@ -112,11 +129,20 @@ Y = DATA.training_dict(Y_TRAIN, 1)
 V_X = DATA.training_dict(X_TEST, 0)
 V_Y = DATA.training_dict(Y_TEST, 1)
 
+# Número de dados para os geradores
+T_SMP = len(X[list(X.keys())[0]])
+V_SMP = len(V_X[list(V_X.keys())[0]])
+
 # Lista de Callbacks completa
 CBCK = DATA.list_callbacks(BASE_DIR)
 
-history = model.fit(X, Y, validation_data=(V_X, V_Y), batch_size=64, epochs=50,
-                    callbacks=CBCK)
+history = model.fit_generator(generator(X,Y, 10, T_SMP), 
+                              # validation_data=generator(V_X, V_Y, 4, V_SMP),
+                              validation_data=(V_X, V_Y),
+                              steps_per_epoch=10, epochs=30,
+                              # validation_steps=2,
+                              # batch_size=32, epochs=5000,
+                              callbacks=CBCK)
 
 print("Salvando modelo para futuro treinamento")
 model.save(BASE_DIR+f'model_{NOW}.h5')

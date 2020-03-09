@@ -20,7 +20,7 @@ from keras.models import Sequential
 from keras.callbacks import TensorBoard, EarlyStopping, ReduceLROnPlateau
 from keras.utils import plot_model
 from keras.preprocessing.sequence import pad_sequences
-
+import gc
 
 class TrainingData:
     """
@@ -38,12 +38,14 @@ class TrainingData:
     info_folder='./'
     pattern=r'\d+\.?\d*_'
 
-    def __init__(self, data_folder, scaler=MinMaxScaler):
+    def __init__(self, data_folder, scaler=MinMaxScaler, FACTOR=1):
         self.data_folder = data_folder
         self.scaler = scaler
         self.N_SAMPLES = len(os.listdir(self.data_folder))
+        self.factor = FACTOR
+        # Para a geometria o factor é 5283.80102
 
-    def data_gen(self, inp_labels=['Inlet_U', 'Points_0', 'Points_2'],
+    def data_gen(self, inp_labels=['Inlet_U', 'Points'],
                  out_labels=['U'], test_split=0.2, mag=['U'],
                  load_sc=True, seed=891859, **kargs):
         """
@@ -58,6 +60,8 @@ class TrainingData:
             load_sc -> Se for para carregar os scalers salvos
                          (verificação será feita na pasta `scaler_folder`)
         """
+        mask =  kargs.get('mask', False)
+        EVAL = kargs.get('EVAL', False)
         # NOTE: DETERMINAR MANEIRA DE FAZER PREVISÕES DE MULTIPLOS DADOS!!
 
         # Gerando {VEL_DE_ENTRADA : Dataframe} para todos os dados dentro da
@@ -71,9 +75,13 @@ class TrainingData:
             # TODO: Para outras patterns, verificar outras opções de
             #        slices e indexing
             # print("key", key)
-            print(f"Reading data: {dado.name + ' '*(25-len(dado.name))} | Samples read: {len(_DF)}", 
-                  end='\r', flush=True)
+            strg =f"Reading data: {dado.name + ' '*(30-len(dado.name))} |"
+            strg +=f" Samples read: {len(_DF)}" 
+            print(strg, end='\r', flush=True)
             key = float(re.findall(self.pattern, dado.name)[0][:-1])
+            # Multiplicar a velocidade por uma constante para obter o número de Reynolds
+            # do escoamento na entrada tangencial
+            key = key * self.factor
             if key in _DF.keys():
                 _DF[key].append(read_csv(dado.path))
             else:
@@ -86,49 +94,65 @@ class TrainingData:
         # para facilitar manipulação de amostras
         print("Verificando labels")
         DATA = self.labels_read(_DF, MAG=mag)
-        
+        # Dados organizados com base em variáveis:
+        #   DATA['Váriavel'] = [amostra1, amostras2, amostra3, ..., amostraN]
+
         # Para corrigir problemas com a diferença na magnitude dos dados
         #   preencher (padding) dados com valores np.nan (para evitar problemas
         #   na etapa de normalização) 
         ## Determinar o comprimento máximo da sequencia
-        print("Determinando comprimento máximo de sequência")
-        dummy = []
-        for name in DATA.keys():
-            for sample in DATA[name]:
-                dummy.append(sample.shape)
-        max_length = max(max(set(dummy)))
-        print(max_length)
+        if mask:
+            print("Determinando comprimento máximo de sequência")
+            dummy = []
+            for name in list(DATA.keys()):
+                for sample in DATA[name]:
+                    dummy.append(sample.shape)
+            max_length = max(max(set(dummy)))
+            print("Comprimento máximo: ", max_length)
 
-        print("Padding values with np.nan...")
-        for label in DATA.keys():
-            DATA[label] = pad_sequences(DATA[label], maxlen=max_length, padding='post', 
-                                        value=np.nan, dtype='float32')
+            if len(set(dummy))>1:
+                print("Padding values with np.nan...")
+                for label in DATA.keys():
+                    DATA[label] = pad_sequences(DATA[label], maxlen=max_length, padding='post', 
+                                                value=np.nan, dtype='float32')
+                    print(f"Padded {label}: Ok!")
+            else:
+                print("No padding necessary...")
 
         # Separar dados de input e output
         print("Separando dados de entrada e saída...")
         DATA = self.data_filter(DATA, inp_labels, out_labels)
         # Para que todos os labels sejam inseridas no dicionário 
         # para realizar a padronização
-        _TMP = DATA[0].copy()
-        _TMP.update(DATA[1])
+        # _TMP = DATA[0].copy()
+        # _TMP.update(DATA[1])
+
+        del _DF
+        gc.collect()
 
         # Carregando normalizadores
         print("Carregando padronizadores...")
-        scaler_dic = self.return_scaler(load_sc=load_sc, data_input=_TMP)
+        scaler_dic = self.return_scaler(load_sc=load_sc, 
+                                        data_input=DATA)
+
+        # Remove repeated keys
+        [DATA[0].pop(it, 'Erro!') for it in list(DATA[1].keys())]
         
         # Cada valor do dicionário scaler_dic referencia seu padronizador
         # utilizando isso para escalonar os dados
         print("Transformando dados...")
         for label in scaler_dic.keys():
             if label in DATA[0].keys():
-                # if bool(re.match("^Points_(0|2)", label)):
-                    # # DATA[0][label] representa os valores do dicionário
-                    # # Inserir zeros para acertar dimensões dos valores
-                    # DATA[0][label] = np.array([scaler_dic[label].transform(DATA[0][label][n][..., np.newaxis])
+                if bool(re.match("^Points_(0|1|2)", label)):
+                    # DATA[0][label] representa os valores do dicionário
+                    # Inserir zeros para acertar dimensões dos valores
+                    # DATA[0][label] = np.array([scaler_dic[label].transform(DATA[0][label][n].reshape(-1, 1))
                                                # for n in range(len(DATA[0][label]))])
+                    DATA[0][label] = scaler_dic[label].transform([DATA[0][label][n] 
+                                                                  for n in range(len(DATA[0][label]))])
                     # print(label, DATA[0][label].shape)
-                # else:
-                DATA[0][label] = scaler_dic[label].transform(DATA[0][label])
+                else:
+                    DATA[0][label] = scaler_dic[label].transform(DATA[0][label])
                 print(label, np.nanmin(DATA[0][label]), np.nanmax(DATA[0][label]))
             elif label in DATA[1].keys():
                 DATA[1][label] = scaler_dic[label].transform(DATA[1][label])
@@ -136,7 +160,7 @@ class TrainingData:
                 # print(label, DATA[1][label].max(), DATA[1][label].min())
 
         # Liberando espaço na memória
-        del _DF, _TMP
+        # del _DF, _TMP
 
         # Para facilitar a consulta da ordem
         self.ORDER = []
@@ -148,20 +172,25 @@ class TrainingData:
                            for indx, label in enumerate(DATA[1].keys())})
         print("ORDER Ready!")
         
-
         # Separando os dados dos inputs e outputs da rede
-        X = np.concatenate(tuple([data[..., np.newaxis]
-                                  for data in DATA[0].values()]), axis=2)
-        Y = np.concatenate(tuple([data[..., np.newaxis]
-                                  for data in DATA[1].values()]), axis=2)
-        print('Changing mask back to know value...')
-        X[ np.isnan(X) ] = -101
-        Y[ np.isnan(Y) ] = -101
+        X = np.concatenate(tuple((data[..., np.newaxis]
+                                  for data in DATA[0].values())), axis=2)
+        Y = np.concatenate(tuple((data[..., np.newaxis]
+                                  for data in DATA[1].values())), axis=2)
+
+        del DATA
+        gc.collect()
+        
+        if mask:
+            print('Changing mask back to know value...')
+            X[ np.isnan(X) ] = -101
+            Y[ np.isnan(Y) ] = -101
         print(f'X: {X.min()} | {X.max()}')
         print(f'Y: {Y.min()} | {Y.max()}')
         print("Ok!")
 
-        if 'EVAL' in kargs.keys():
+
+        if EVAL:
             print("Full Data")
             print("Shape of X: ", X.shape)
             print("Shape of Y: ", Y.shape)
@@ -169,14 +198,17 @@ class TrainingData:
         
         else:
             print("Gerando dicionário de treinamento...")
-            X_TRAIN, X_TEST, Y_TRAIN, Y_TEST = train_test_split(X, Y,
-                                                                test_size=test_split, 
-                                                                random_state=seed)
+            (X_TRAIN, X_TEST, 
+             Y_TRAIN, Y_TEST) = train_test_split(X, Y,
+                                                 test_size=test_split, 
+                                                 random_state=seed)
 
             print("Shape of X_TRAIN: ", X_TRAIN.shape)
             print("Shape of Y_TRAIN: ", Y_TRAIN.shape)
             print("Shape of X_TEST: ", X_TEST.shape)
             print("Shape of Y_TEST: ", Y_TEST.shape)
+            del X,Y
+            gc.collect()
 
             return (X_TRAIN, X_TEST, Y_TRAIN, Y_TEST)
 
@@ -224,8 +256,8 @@ class TrainingData:
                         if bool(re.match(f'^{pop_key}', label)):
                             vector[vec_str[0]] = [comp for comp in labeled_data.keys()
                                                   if re.findall(f'^{vec_str[0]}_\d', comp)]
-                print(vector)
-                print(labeled_data.keys())
+                # print(vector)
+                # print(labeled_data.keys())
                 for vec in vector.keys():
                     # try:
                     if isinstance(vector[vec], list):
@@ -259,25 +291,31 @@ class TrainingData:
 
         if load_sc:
             if data_input:
-                for label in data_input.keys():
-                    SCALER_DICT[label] = load(f'{self.scaler_folder+label}.joblib')
+                for key in data_input:
+                    for label in key:
+                        SCALER_DICT[label] = load(f'{self.scaler_folder+label}.joblib')
             else:
                 for fn in os.scandir(self.scaler_folder):
                     if bool(re.match(f'\w*.joblib$', fn.name)):
                         SCALER_DICT[fn.name.split('.joblib')[0]] = load(f'{fn.path}')
         else:
             print("Realizando normalização...")
-            for label in data_input.keys():
-                # if bool(re.match(f'^Points', label)):
-                    # # Cosiderando que a normalização será feita no plano 
-                    # SCALER_DICT[label] = self.scaler().fit(data_input[label][..., np.newaxis][0])
-                # else:
-                SCALER_DICT[label] = self.scaler().fit(data_input[label])
-                print(label, data_input[label].shape, 
-                      np.nanmin(data_input[label][np.where( data_input[label] != np.nan)]), 
-                      np.nanmax(data_input[label][np.where( data_input[label] != np.nan)]))
-                print("=="*20)
-                dump(SCALER_DICT[label], f'{self.scaler_folder+label}.joblib')
+            for key in data_input:
+                for label in key:
+                    if bool(re.match(f'^Points', label)):
+                        # Cosiderando que a normalização será feita no plano 
+                        # SCALER_DICT[label] = self.scaler().fit(data_input[label][..., np.newaxis][0])
+                        dt = key[label][0][0].reshape(-1, 1)
+                        SCALER_DICT[label] = self.scaler().fit(dt)
+                        # CASO TENHAM AMOSTRAS DIFERENTES, ELIMINE O "if" E MANTENHA 
+                        # APENAS A EXPRESSÃO DO ELSE ABAIXO
+                    else:
+                        SCALER_DICT[label] = self.scaler().fit(key[label])
+                    # print(label, data_input[label].shape, 
+                          # np.nanmin(data_input[label][np.where( data_input[label] != np.nan)]), 
+                          # np.nanmax(data_input[label][np.where( data_input[label] != np.nan)]))
+                    # print("=="*20)
+                    dump(SCALER_DICT[label], f'{self.scaler_folder+label}.joblib')
 
         return SCALER_DICT
 
@@ -345,8 +383,6 @@ class TrainingData:
         return final
 
 
-
-
     def data_filter(self, data, inputs, outputs):
         """
             File: auxiliar_functions.py
@@ -370,6 +406,7 @@ class TrainingData:
         print('Outputs: ', " ".join(Y.keys()))
         # Dados não incluídos
         NI = set(data.keys()) - set(Y.keys()) - set(X.keys())
+        del data
         if NI:
             print(", ".join(NI) +" not included!")
         data = (X, Y)
@@ -438,15 +475,17 @@ class TrainingData:
         except:
             print("Data is not uniform for separation!")
 
-        for label in labels.keys():
+        for label in list(labels.keys()):
             corr_name = re.sub(r'[^A-Za-z0-9.][^A-Za-z0-9_.\-/]*', '_',
                               label)
-            print(label, corr_name)
-            labels[corr_name] = labels.pop(label)
+            if corr_name != label:
+                labels[corr_name] = labels[label]
+                del labels[label]
 
         # Verificando valores dentro do último dicionário 
-        for key in labels.keys():
-            print(key, len(labels[key]), set([p.shape for p in labels[key]]))
+        # for key in labels.keys():
+            # print(key, len(labels[key]), set([p.shape for p in labels[key]]))
+            # print("="*30)
 
         return labels
 
@@ -521,7 +560,7 @@ class TrainingData:
         return suffix, caso_name, inp_data
 
      
-    def predict_data_generator(self, model, INPUT_DATA, FILENAME, ORIGIN_DATA):
+    def predict_data_generator(self, model, INPUT_DATA, FILENAME, ORIGIN_DATA=None):
         """
             File: auxiliar_functions.py
             Function Name: predict_data_generator
@@ -584,17 +623,37 @@ class TrainingData:
         print("Dados de previsão copiados!")
 
         # Diferença do valor previsto e o caso original
-        print("Calculando diferença...")
-        ORIGIN_DF = read_csv(ORIGIN_DATA)
+        if ORIGIN_DATA:
+            print("Calculando diferença...")
+            ORIGIN_DF = read_csv(ORIGIN_DATA)
 
-        DIFF = SLICE_DATA[out_col] - ORIGIN_DF[out_col]
+            DIFF = SLICE_DATA[out_col] - ORIGIN_DF[out_col]
 
-        RESULT_DATA = concat([DIFF, SLICE_DATA[in_col]], axis=1)
+            RESULT_DATA = concat([DIFF, SLICE_DATA[in_col]], axis=1)
 
-        print('Escrevendo dados DIFERENÇA')
-        name = re.findall(self.pattern, ORIGIN_DATA.split(self.data_folder)[-1])[0][:-1]
-        RESULT_DATA.to_csv(self.save_dir + f'DIFF_SLICE_U_{name}.csv', index=False)
-        print('Dados de diferença copiados!')
+            print('Escrevendo dados DIFERENÇA')
+            name = re.findall(self.pattern, ORIGIN_DATA.split(self.data_folder)[-1])[0][:-1]
+            RESULT_DATA.to_csv(self.save_dir + f'DIFF_SLICE_U_{name}.csv', index=False)
+            print('Dados de diferença copiados!')
+        return None
+
+    
+    def U_for_OpenFOAM(self, DATA, FILENAME):
+        """
+            File: auxiliar_functions.py
+            Function Name: U_for_OpenFOAM
+            Summary: Write data in format of OpenFoam 
+            Description: Quick function for writing data in OF format
+                         for substitution in velocity file
+                         DATA (pandas.DataFrame): data to write
+                         FILENAME (str): filename with path
+        """
+
+        with open(FILENAME, 'w') as fn:
+            fn.write('(' + DATA.to_csv(None, index=False,  header=0, sep=' ', 
+                                       line_terminator=')\n(')[:-1])
+        
+        return None
 
 
     def wall_data(self, XZ_DATA):
