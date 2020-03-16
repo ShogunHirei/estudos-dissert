@@ -20,10 +20,11 @@ ATUAL=$1
 #         |____ ...
 
 # Script do Paraview para extração dos dados
-PVPYTHON=$2
+#PVPYTHON=$2
 
 # Diretório aonde serão salvos os dados 
-SAVE_DIR=$3
+#SAVE_DIR=$3
+SAVE_DIR=$2
 
 
 for (( IT=0; IT < $POINTS; IT++))
@@ -32,7 +33,7 @@ for (( IT=0; IT < $POINTS; IT++))
         # Primeiro passo é determina a velocidade a se alterar
         # Considerando que ATUAL é um diretório
         VEL=${ATUAL:13}
-        VEL=$(python3 -c "print($VEL + $STEP)")
+        VEL=$(python3 -c "print(round($VEL + $STEP),4))")
         echo "The new vel is $VEL"
         # Considerando que esse script será executado no diretório Simulations
         # ou seja cwd=Simulations/
@@ -59,13 +60,13 @@ for (( IT=0; IT < $POINTS; IT++))
             rm -r ./$NEW/$TIME
         done
         # Alterando os parametros da simulação
-        sed -i "s/\(uniform\) -[[:digit:]]\.\?[[:digit:]]/\1 -$VEL/g" ./$NEW/0/U
+        sed -i "s/\(uniform\) -[[:digit:]]*\.\?[[:digit:]]/\1 -$VEL/g" ./$NEW/0/U
         # O script usa caminho relativo , por isso mudar para o diretório de execução
         cd ./$NEW
         ./script.sh 
         cd ../
         # Executar script do paraview para obter dados
-        pvpython $PVPYTHON ./$NEW/mesh_coarse.OpenFOAM $VEL $SAVE_DIR 
+        #pvpython $PVPYTHON ./$NEW/mesh_coarse.OpenFOAM $VEL $SAVE_DIR 
         ATUAL=$NEW
 
     done

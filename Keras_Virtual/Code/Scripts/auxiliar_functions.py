@@ -5,9 +5,7 @@ Description: Funções utilizadas repetidamente durante a implementação.
 """
 
 # Função utilizada em ciclone_ANN para obter a estrutura da rede no output
-import re
-import os
-import sys
+import re, os, sys
 import numpy as np
 import tensorflow as tf
 from joblib import dump, load
@@ -20,6 +18,7 @@ from keras.models import Sequential
 from keras.callbacks import TensorBoard, EarlyStopping, ReduceLROnPlateau
 from keras.utils import plot_model
 from keras.preprocessing.sequence import pad_sequences
+from datetime import datetime
 import gc
 
 class TrainingData:
@@ -905,6 +904,23 @@ def rec_function(dic, logfile):
         for p in range(len(dic)):
             rec_function(dic[p], logfile)
 
+
+def make_folder(path):
+    """
+        File: auxiliar_functions.py
+        Function Name: make_folder
+        Summary: Generate folder for saving data of TrainingData
+        Description: Use os.mkdir to make folders to save data
+    """
+    NOW = datetime.now()
+    BASE_DIR = path + NOW.strftime("%Y%m%d-%H%M%S") + '/'
+    SCALER_FOLDER = BASE_DIR + 'Scalers/'
+    INFO_DIR = BASE_DIR + 'Info/' 
+    os.mkdir(BASE_DIR)
+    os.mkdir(SCALER_FOLDER)
+    os.mkdir(INFO_DIR)
+    print("Base, Info and Scaler folder ready!")
+    return BASE_DIR, INFO_DIR, SCALER_FOLDER
 
 # Função loss Customizada para magnitude
 def mag_diff_loss(y_pred, y_true):

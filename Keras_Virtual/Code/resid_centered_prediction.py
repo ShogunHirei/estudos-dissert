@@ -7,13 +7,13 @@ Description: Neural Networks prediction of Mass and Momentum conservation
 
 import os, re, sys
 import numpy as np
-from keras.models import Model
-from keras.layers import Dense
-from keras.utils import plot_model
-from keras.regularizers import l1, l2
-from keras import optimizers
-from keras.backend import sigmoid
-from keras.layers import BatchNormalization
+from tensorflow.keras.models import Model
+from tensorflow.keras.layers import Dense
+from tensorflow.keras.utils import plot_model
+from tensorflow.keras.regularizers import l1, l2
+from tensorflow.keras import optimizers
+from tensorflow.keras.backend import sigmoid
+from tensorflow.keras.layers import BatchNormalization
 from sklearn.preprocessing import MaxAbsScaler
 from Scripts.auxiliar_functions import TrainingData, NeuralTopology
 from joblib import dump
