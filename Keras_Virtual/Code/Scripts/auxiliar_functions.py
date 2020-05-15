@@ -12,12 +12,12 @@ from joblib import dump, load
 from pandas import read_csv, concat, DataFrame
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import MinMaxScaler
-from keras import backend as K
-from keras.layers import Dense, Input, concatenate, Masking
-from keras.models import Sequential
-from keras.callbacks import TensorBoard, EarlyStopping, ReduceLROnPlateau
-from keras.utils import plot_model
-from keras.preprocessing.sequence import pad_sequences
+from tensorflow.keras import backend as K
+from tensorflow.keras.layers import Dense, Input, concatenate, Masking
+from tensorflow.keras.models import Sequential
+from tensorflow.keras.callbacks import TensorBoard, EarlyStopping, ReduceLROnPlateau
+from tensorflow.keras.utils import plot_model
+from tensorflow.keras.preprocessing.sequence import pad_sequences
 from datetime import datetime
 import gc
 
@@ -637,7 +637,7 @@ class TrainingData:
         return None
 
     
-    def U_for_OpenFOAM(self, DATA, FILENAME):
+    def U_for_OpenFOAM(self, DATA, FILENAME, VECTOR=True, TIME=5573):
         """
             File: auxiliar_functions.py
             Function Name: U_for_OpenFOAM
@@ -647,11 +647,52 @@ class TrainingData:
                          DATA (pandas.DataFrame): data to write
                          FILENAME (str): filename with path
         """
+        from string import Template
+
+        string = """/*--------------------------------*- C++ -*----------------------------------*\\
+  =========                 |\n  \\\\      /  F ield         | OpenFOAM: The Open Source CFD Toolbox
+   \\\\    /   O peration     | Website:  https://openfoam.org\n    \\\\  /    A nd           | Version:  6\n     \\\\/     M anipulation  |
+\\*---------------------------------------------------------------------------*/\nFoamFile\n{\n    version     2.0;
+    format      ascii;\n    class       $CLASS;\n    location    "$TIME";
+    object      $TYPE;\n \n}\n// * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //\n
+dimensions      $DIMENSIONS;\n\ninternalField   nonuniform $DATA_TYPE
+112196\n(\n$DATA)\n;
+\n \nboundaryField \n{ \n\tPAREDE \n\t{ \n\t\t$PAREDE \n\t} \n\tOVERFLOW \n\t{ \n\t\t$OVERFLOW \n\t} \n\tUNDERFLOW \n\t{ \n\t\t$UNDERFLOW \n\t}
+\tENTRADA \n\t{ \n\t\t$ENTRADA \n\t} \n} \n\n// ************************************************************************* //"""
+
+        s = Template(string)
+
+        # To generate file of OpenFoam Variables of pressure or Velocity profile
+        #   KEYS of dict: CLASS, TIME, TYPE, DIMENSIONS, DATA_TYPE, DATA
+        #                 PAREDE, OVERFLOW, UNDERFLOW, ENTRADA, PAREDE
+        FOR_STRING = {'CLASS':'volVectorField', 'TIME':TIME, 'TYPE':'U',
+                'DIMENSIONS':'[0 1 -1 0 0 0 0]', 'DATA_TYPE':'List<vector>',
+                'PAREDE':'type            noSlip;', 'OVERFLOW':'type            zeroGradient;',
+                'UNDERFLOW':'type            zeroGradient;',
+                'ENTRADA':'type            surfaceNormalFixedValue;\n         refValue        uniform -10;'
+                }
+        if not VECTOR:
+            FOR_STRING = {'CLASS':'volScalarField', 'TIME':TIME, 'TYPE':'p',
+                'DIMENSIONS':'[0 2 -2 0 0 0 0]', 'DATA_TYPE':'List<scalar>',
+                'PAREDE':'type            fixedValue;\n        value           uniform 0;',
+                'OVERFLOW':'type            fixedValue;\n        value           uniform 0;',
+                'UNDERFLOW':'type            fixedValue;\n        value           uniform 0;',
+                'ENTRADA':'type            zeroGradient;'}
 
         with open(FILENAME, 'w') as fn:
-            fn.write('(' + DATA.to_csv(None, index=False,  header=0, sep=' ', 
-                                       line_terminator=')\n(')[:-1])
-        
+            if VECTOR:
+                FOR_STRING['DATA'] = '(' + DATA.to_csv(None, index=False,  header=0, sep=' ', 
+                                      line_terminator=')\n(')[:-1]
+            else:
+                FOR_STRING['DATA'] = (DATA.to_csv(None, index=False, header=0,
+                                     sep=' '))
+            print('Writing file...')
+            fn.write(s.substitute(FOR_STRING))
+            # fn.write(s.substitute(CLASS=FOR_STRING['CLASS'], TIME=FOR_STRING['TIME'],
+                                   # TYPE=FOR_STRING['TYPE'], DIMENSIONS=FOR_STRING['DIMENSIONS'],
+                                   # DATA_TYPE=FOR_STRING['DATA_TYPE'], DATA=FOR_STRING['DATA'],
+                                   # PAREDE=FOR_STRING['PAREDE'], OVERFLOW=FOR_STRING['OVERFLOW'],
+                                   # UNDERFLOW=FOR_STRING['UNDERFLOW'], ENTRADA=FOR_STRING['ENTRADA']))
         return None
 
 
