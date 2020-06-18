@@ -5,9 +5,10 @@ Description: Funções utilizadas repetidamente durante a implementação.
 """
 
 # Função utilizada em ciclone_ANN para obter a estrutura da rede no output
-import re, os, sys
+import re, os, sys, gc
 import numpy as np
 import tensorflow as tf
+import matplotlib.pyplot as plt
 from joblib import dump, load
 from pandas import read_csv, concat, DataFrame
 from sklearn.model_selection import train_test_split
@@ -19,7 +20,6 @@ from tensorflow.keras.callbacks import TensorBoard, EarlyStopping, ReduceLROnPla
 from tensorflow.keras.utils import plot_model
 from tensorflow.keras.preprocessing.sequence import pad_sequences
 from datetime import datetime
-import gc
 
 class TrainingData:
     """
@@ -946,6 +946,34 @@ def rec_function(dic, logfile):
             rec_function(dic[p], logfile)
 
 
+def plot_reyNum(files, var, point, FACTOR=5283.80102):
+    """
+        File: auxiliar_functions.py
+        Function Name: plot_reyNum
+        Summary: 2D plot of Inlet vs Var
+        Description: Function to plot the variation of some variable (p, U) in a point
+                     or a group of points.
+                     `files` -> list of string with the path to read points
+                     `var` -> string with the var name
+                     `point` -> int or list with list of points
+    """
+    DATA_PLT = []
+    for fn in files:
+        csv = read_csv(fn).loc[point]
+        DATA_PLT.append((float(re.findall('\d+\.?\d*', fn)[0])*FACTOR,list(csv[var])))
+    if isinstance(point, list):
+        for p in range(len(point)):
+            plt.plot([data[0] for data in DATA_PLT],
+                     [data[1][p] for data in DATA_PLT], '*')
+    else:
+        plt.plot([data[0] for data in DATA_PLT],
+                 [data[1] for data in DATA_PLT], 'k*')
+    print("Data ready!")
+    plt.show()
+    return None
+
+            
+
 def make_folder(path):
     """
         File: auxiliar_functions.py
@@ -1056,3 +1084,5 @@ class Writer:
             for dataline in self.data[ind]:
                 datafile.write(str(tuple(dataline)))
         # Inserir local e indices do array
+
+
