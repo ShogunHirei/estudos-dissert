@@ -11,30 +11,33 @@ escoamento.
 
 ## 2. ciclone
 
-### 2.1 ciclone_ANN.py
+<!--### 2.1 ciclone_ANN.py
     O arquivo que será utilizado na otimização dos hiperparametros de 'ciclone_ANN_old'.
     Utilizando Hyperas (HyperOpt) como modulo de otimização.
 
 ### 2.2 ciclone_ANN_old.py
 
-    Arquivo com configuração de rede utilizada no processo de treinamento inicial.
+Arquivo com configuração de rede utilizada no processo de treinamento inicial.
 
 ### 2.3 isolated_prediction
 
     Rede neural elaborada com base no script de 'ciclone_ANN_old.py', mas para predizer
-    as 3 componentes de velocidade.
+    as 3 componentes de velocidade.-->
+
+### 2.1 Skip-connections
+    Script de rede residual.
 
 
 ## Estrutura de Arquivos
 ### 1. Models
 
     Modelos aplicados no problema em cada branch
-### 2. Order Reduction
+<!--### 2. Order Reduction
 
     Algoritmos de redução de ordem, ou seus estudos, para uso no problema, caso necessário
 ### 3. Generated Files
 
-    Arquivos Gerados, por extração de dados, ou modelos salvos pelo Keras.
+    Arquivos Gerados, por extração de dados, ou modelos salvos pelo Keras.-->
 
 ### 4. Scripts
 
