@@ -9,8 +9,8 @@ import re, os, sys, gc
 import numpy as np
 import tensorflow as tf
 import matplotlib.pyplot as plt
-from joblib import dump, load
-from pandas import read_csv, concat, DataFrame
+from joblib import dump, load, parallel_backend
+from modin.pandas import read_csv, concat, DataFrame
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import MinMaxScaler
 from tensorflow.keras import backend as K
@@ -46,19 +46,21 @@ class TrainingData:
 
     def data_gen(self, inp_labels=['Inlet_U', 'Points'],
                  out_labels=['U'], test_split=0.2, mag=['U'],
-                 load_sc=True, seed=891859, **kargs):
+                 load_sc=True, seed=None, **kargs):
         """
             File: training_data.py
             Function Name: data_gen
-            Summary: Gerar dados de treinamento
-            Description: Usar pasta com arquivos .csv e gerar conjuntos
-                         de treinamento e teste.
+            Summary: Generate training data to feed ANN
+            Description: Use folder with ONLY training data in .csv extension and 
+                         generate training and test set.
 
-            mag -> None ou Lista das magnitudes que SERÃO INSERIDAS no
-                   conjunto de dados do treinamento
-            load_sc -> Se for para carregar os scalers salvos
-                         (verificação será feita na pasta `scaler_folder`)
+            mag -> None or list of the vector variable which WILL BE insert in the 
+                   ANN training dataset.
+            load_sc -> If either the scalers will be loaded (True) or not.
+                       (folder `scaler_folder` will be verified to check for 
+                        the scalers' files)
         """
+
         mask =  kargs.get('mask', False)
         EVAL = kargs.get('EVAL', False)
         # NOTE: DETERMINAR MANEIRA DE FAZER PREVISÕES DE MULTIPLOS DADOS!!
@@ -82,9 +84,9 @@ class TrainingData:
             # do escoamento na entrada tangencial
             key = key * self.factor
             if key in _DF.keys():
-                _DF[key].append(read_csv(dado.path))
+                _DF[key].append(read_csv(dado.path, dtype=np.float64))
             else:
-                _DF[key] = [read_csv(dado.path)]
+                _DF[key] = [read_csv(dado.path, dtype=np.float64)]
         print()
         # _DF = {float(): read_csv(dado.path)
                # for dado in os.scandir(self.data_folder)}
@@ -142,30 +144,45 @@ class TrainingData:
         print("Transformando dados...")
         for label in scaler_dic.keys():
             if label in DATA[0].keys():
+                # Input data transformation with the scalers in `scalers_dict`
+                # DATA[0][label] is the value of the feature in the dictionary
+
                 if bool(re.match("^Points_(0|1|2)", label)):
-                    # DATA[0][label] representa os valores do dicionário
-                    # Inserir zeros para acertar dimensões dos valores
-                    # DATA[0][label] = np.array([scaler_dic[label].transform(DATA[0][label][n].reshape(-1, 1))
-                                               # for n in range(len(DATA[0][label]))])
-                    DATA[0][label] = scaler_dic[label].transform([DATA[0][label][n] 
-                                                                  for n in range(len(DATA[0][label]))])
-                    # print(label, DATA[0][label].shape)
+                    # Points data are normalized withn the sample
+
+                    with parallel_backend(n_jobs=4, backend='multiprocessing'):
+                        # Changing data call to test speedup
+                        LABEL_DATA = [DATA[0][label][n] for n in range(len(DATA[0][label]))]
+                        DATA[0][label] = scaler_dic[label].transform(LABEL_DATA)
+
                 else:
-                    DATA[0][label] = scaler_dic[label].transform(DATA[0][label])
+                    # Inputs labels which are normalized across samples
+                    with parallel_backend(n_jobs=4, backend='multiprocessing'):
+                        DATA[0][label] = scaler_dic[label].transform(DATA[0][label])
+
+                # To check the data transforamtion and magnitude
                 print(label, np.nanmin(DATA[0][label]), np.nanmax(DATA[0][label]))
+
+            # For the ouputs labels 
             elif label in DATA[1].keys():
-                DATA[1][label] = scaler_dic[label].transform(DATA[1][label])
+
+                # That are considered the outputs are normalized across the samples too
+                with parallel_backend(n_jobs=4, backend='multiprocessing'):
+                    DATA[1][label] = scaler_dic[label].transform(DATA[1][label])
+
+                # Checking Data dimension
                 print(label, np.nanmin(DATA[1][label]), np.nanmax(DATA[1][label]))
-                # print(label, DATA[1][label].max(), DATA[1][label].min())
 
         # Liberando espaço na memória
         # del _DF, _TMP
 
-        # Para facilitar a consulta da ordem
+        # Data ordering facilitation attribute
         self.ORDER = []
+
         # Inputs
         self.ORDER.append({label: (indx, DATA[0][label].shape[1:])
                            for indx, label in enumerate(DATA[0].keys())})
+
         # Outputs
         self.ORDER.append({label: (indx, DATA[1][label].shape[1:])
                            for indx, label in enumerate(DATA[1].keys())})
@@ -177,6 +194,7 @@ class TrainingData:
         Y = np.concatenate(tuple((data[..., np.newaxis]
                                   for data in DATA[1].values())), axis=2)
 
+        #  Reduce memory consumption
         del DATA
         gc.collect()
         
@@ -189,6 +207,7 @@ class TrainingData:
         print("Ok!")
 
 
+        # Data used for in validation step
         if EVAL:
             print("Full Data")
             print("Shape of X: ", X.shape)
@@ -305,16 +324,19 @@ class TrainingData:
                         # Cosiderando que a normalização será feita no plano 
                         # SCALER_DICT[label] = self.scaler().fit(data_input[label][..., np.newaxis][0])
                         dt = key[label][0][0].reshape(-1, 1)
-                        SCALER_DICT[label] = self.scaler().fit(dt)
+                        with parallel_backend(n_jobs=4, backend='multiprocessing'):
+                            SCALER_DICT[label] = self.scaler().fit(dt)
                         # CASO TENHAM AMOSTRAS DIFERENTES, ELIMINE O "if" E MANTENHA 
                         # APENAS A EXPRESSÃO DO ELSE ABAIXO
                     else:
-                        SCALER_DICT[label] = self.scaler().fit(key[label])
+                        with parallel_backend(n_jobs=4, backend='multiprocessing'):
+                            SCALER_DICT[label] = self.scaler().fit(key[label])
                     # print(label, data_input[label].shape, 
                           # np.nanmin(data_input[label][np.where( data_input[label] != np.nan)]), 
                           # np.nanmax(data_input[label][np.where( data_input[label] != np.nan)]))
                     # print("=="*20)
                     dump(SCALER_DICT[label], f'{self.scaler_folder+label}.joblib')
+                    print(f'Saved scaler for {label}!')
 
         return SCALER_DICT
 
@@ -585,23 +607,48 @@ class TrainingData:
 
         # Retornando os dados para a escala anterior
         in_col, out_col = [], []
+
+        # The resulting .CSV file data will have the inputs (X, Y, Z) and
+        #   the outputs to be read by Paraview
+
+        # Ordering results array according to the name of the column
         if isinstance(PREDICs, list):
             data_to_concat = []
+
+
+            # Changing name back to original naming pattern, to be compatible 
+            # with the file in ORIGIN_DATA, assumed with the same pattern as 
+            # a .CSV produced by ParaView
             for name in INPUT_DATA.keys():
                 # Substituir o "_" por uma regex para bater com os nomes das colunas
                 col = [key for key in colunas if bool(re.match(f"^{name.replace('_', '[:_]')}$", key))]
                 if bool(col):
                     in_col.append(col[0])
+
+                    # Transforming data back to original scale
                     arr = scaler_dict[name].inverse_transform(INPUT_DATA[name].reshape(1, -1))
+
+                    # Adding column to the file produced
                     data_to_concat.append(DataFrame(arr.reshape(-1), columns=col))
+
+
+            # The model's  output is represented in self.ORDER[1]
             for name in self.ORDER[1].keys():
+                
+                # Change name to match with Paraview naming pattern
                 col = [key for key in colunas if bool(re.match(f"^{name.replace('_', '[:_]')}$", key))]
+
+                # Add name compatible 
                 if bool(col):
                     out_col.append(col[0])
                     # ORDER[1] é o dicionário dos outputs que contém
                     # uma tupla com o indice e o shape do output
                     pred_arr = PREDICs[self.ORDER[1][name][0]].reshape(1,-1)
+
+                    # Transforming data to original scale
                     arr = scaler_dict[name].inverse_transform(pred_arr)
+
+                    # Adding columns name with the ParaView naming pattern
                     data_to_concat.append(DataFrame(arr.reshape(-1), columns=col))
 
         print(f"Inputs = {in_col}")
@@ -945,6 +992,18 @@ def rec_function(dic, logfile):
         for p in range(len(dic)):
             rec_function(dic[p], logfile)
 
+
+
+def tf_less_verbose(n=3):
+    """
+        File: automatic_data_extraction.py
+        Function Name: tf_less_verbose
+        Summary: Make tensorflow reduce message in stdout
+        Description: Reduce warnings to fail situation
+    """
+    # Testing StackOverFlow answer
+    # Defining variable to level of failure 
+    os.environ['TF_CPP_MIN_LOG_LEVEL'] = f'{n}'
 
 def plot_reyNum(files, var, point, FACTOR=5283.80102):
     """
