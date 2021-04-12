@@ -1,36 +1,85 @@
 """
 File: auxiliar_functions.py
 Author: ShogunHirei
-Description: Funções utilizadas repetidamente durante a implementação.
+Description: Set of function used along the code development
+             Main classes: TrainingData(!) and NeuralTopology(less)
+             Verbose function of tensorflow and decorators to profile runtime
+                execution
 """
 
-# Função utilizada em ciclone_ANN para obter a estrutura da rede no output
-import re, os, sys, gc
+import re
+import os
+import sys
+import gc
+import time
+import functools
 import numpy as np
 import tensorflow as tf
 import matplotlib.pyplot as plt
 from joblib import dump, load, parallel_backend
-from modin.pandas import read_csv, concat, DataFrame
+from pandas import read_csv, concat, DataFrame
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import MinMaxScaler
 from tensorflow.keras import backend as K
 from tensorflow.keras.layers import Dense, Input, concatenate, Masking
 from tensorflow.keras.models import Sequential
-from tensorflow.keras.callbacks import TensorBoard, EarlyStopping, ReduceLROnPlateau
+from tensorflow.keras.callbacks import TensorBoard, EarlyStopping, ReduceLROnPlateau, Callback
 from tensorflow.keras.utils import plot_model
 from tensorflow.keras.preprocessing.sequence import pad_sequences
 from datetime import datetime
+
+
+# Function to time output
+def timerFunc(function):
+    """
+        File: auxiliar_functions.py
+        Function Name: timerFunc
+        Summary: Time function runtime
+        Description: Function to count the time to generate output, using
+                     decorator to improve workflow
+    """
+    # Using functools to grap arguments of function
+    @functools.wraps(function)
+    def timerWrapper(*args, **kwargs):
+        """
+            File: auxiliar_functions.py
+            Function Name: timerWrapper
+            Summary: wrapper to time the function runtime
+        """
+        # Using `time` module performance benchmarking
+        startTime = time.perf_counter()
+        result_function = function(*args, **kwargs)
+        stopTime = time.perf_counter()
+        runTime = stopTime - startTime
+
+
+        # Getting arguments from kwargs
+        outfile = kwargs.get('outfile', False)
+        inlet = kwargs.get('inlet', False)
+        var_name = kwargs.get('VARNAME', False)
+
+
+        if outfile:
+            # Consider adding defining a flush (output redirection)
+            with open(outfile, 'a') as fn:
+                print(inlet, var_name, runTime, file=fn, sep=',')
+        else:
+            print(f'Execution time: {runTime}')
+
+        return result_function
+
+    return timerWrapper
 
 class TrainingData:
     """
     File: training_data.py
     Author: ShogunHirei
-    Description: Script para gerar dados de treinamento para facilitar
-                 a scrita do código.
-                 Lembrar que `pattern` precisa ser única para cada `datafile`
-                 e se refere à um dado descrito no nome do arquivo .csv,
-                 e precisa de um caractere a mais para ser eliminado
+    Description: Script to create training data to aid in tests
+                 `pattern` refers to data in the filenames which will be read
+                 in `data_folder`.
     """
+    # Class attribute to aid in identification of 
+    # inputs/outputs and labels names (applied in layers naming)
     ORDER = []
     save_dir='./'
     scaler_folder='./'
@@ -42,7 +91,10 @@ class TrainingData:
         self.scaler = scaler
         self.N_SAMPLES = len(os.listdir(self.data_folder))
         self.factor = FACTOR
-        # Para a geometria o factor é 5283.80102
+        # To the mesh used, factor is  5283.80102
+        # Factor is Dh/nu, 
+        # Hidraulic diameter = 0.08285 (to the mesh studied)
+        # Dynamic viscosity = 1.568E-5 (to the mesh studied)
 
     def data_gen(self, inp_labels=['Inlet_U', 'Points'],
                  out_labels=['U'], test_split=0.2, mag=['U'],
@@ -56,60 +108,72 @@ class TrainingData:
 
             mag -> None or list of the vector variable which WILL BE insert in the 
                    ANN training dataset.
-            load_sc -> If either the scalers will be loaded (True) or not.
+            load_sc -> If the scalers will be loaded (True) or not.
                        (folder `scaler_folder` will be verified to check for 
                         the scalers' files)
         """
 
+        # If the key do not exists in **kargs they received False
         mask =  kargs.get('mask', False)
         EVAL = kargs.get('EVAL', False)
-        # NOTE: DETERMINAR MANEIRA DE FAZER PREVISÕES DE MULTIPLOS DADOS!!
+        BATCH = kargs.get('BATCH', True)
+        # NOTE: FIGURE OUT WAY TO MAKE BATCH PREDICTIONS!
+        # NOTE: Check `self.pattern` for files created to work with 
+        #       recurrent neural networks.
 
-        # Gerando {VEL_DE_ENTRADA : Dataframe} para todos os dados dentro da
-        # pasta de dados `data_folder`
-        print("Gerando dados de entrada...")
-        # Problemas com a pattern para os arquivos gerados para redes recorrentes
-        # arranjar uma maneira de adicionar todos os planos de valores de velocidade
-        # para cada velocidade 
+        # Creating {VEL_DE_ENTRARA: Dataframe} for every data inside folder 
+        #    `self.data_folder`
+        print("Creating training data")
         _DF = {}
-        for dado in os.scandir(self.data_folder):
-            # TODO: Para outras patterns, verificar outras opções de
-            #        slices e indexing
-            # print("key", key)
+
+        # To determine the path to read the filenames
+        if BATCH:
+            try:
+                num_samples = kargs.get('SAMPLES', 3)
+                filename_paths = self.get_paths(num_samples)
+            except KeyError:
+                print('Number of samples must be specified in batch mode')
+        else:
+            # If it is not a prediction of just a few files
+            #   get all the files from the default folder (previous_behaviour)
+            filename_paths = self.get_paths(self.N_SAMPLES)
+
+        for dado in filename_paths:
+            # TODO: Check other options of slice and indexing based on 
+            #       `self.pattern` 
+
             strg =f"Reading data: {dado.name + ' '*(30-len(dado.name))} |"
-            strg +=f" Samples read: {len(_DF)}" 
+            strg +=f" Samples read: {len(_DF) + 1}" 
             print(strg, end='\r', flush=True)
             key = float(re.findall(self.pattern, dado.name)[0][:-1])
-            # Multiplicar a velocidade por uma constante para obter o número de Reynolds
-            # do escoamento na entrada tangencial
+            
+
+            # Multiply the inlet velocity for constant to input the 
+            #  Reynolds number
             key = key * self.factor
             if key in _DF.keys():
                 _DF[key].append(read_csv(dado.path, dtype=np.float64))
             else:
                 _DF[key] = [read_csv(dado.path, dtype=np.float64)]
         print()
-        # _DF = {float(): read_csv(dado.path)
-               # for dado in os.scandir(self.data_folder)}
 
-        # Verificando uniformidade dos dados e organizando em np.arrays
-        # para facilitar manipulação de amostras
-        print("Verificando labels")
+        # Verifying data uniformity and organizing in np.arrays to 
+        # aid in sample manipulation
+        print("Checking labels integrity")
         DATA = self.labels_read(_DF, MAG=mag)
-        # Dados organizados com base em variáveis:
-        #   DATA['Váriavel'] = [amostra1, amostras2, amostra3, ..., amostraN]
 
-        # Para corrigir problemas com a diferença na magnitude dos dados
-        #   preencher (padding) dados com valores np.nan (para evitar problemas
-        #   na etapa de normalização) 
-        ## Determinar o comprimento máximo da sequencia
+        # Use padding with np.nan to correct problems with data magnitude
+        #       and avoid troubles in scaling step.
+
+        ## To determine the maximum length of sequence (recurrent or masked data)
         if mask:
-            print("Determinando comprimento máximo de sequência")
+            print("Determining maximum length of sequence")
             dummy = []
             for name in list(DATA.keys()):
                 for sample in DATA[name]:
                     dummy.append(sample.shape)
             max_length = max(max(set(dummy)))
-            print("Comprimento máximo: ", max_length)
+            print("Maximum length:", max_length)
 
             if len(set(dummy))>1:
                 print("Padding values with np.nan...")
@@ -120,19 +184,14 @@ class TrainingData:
             else:
                 print("No padding necessary...")
 
-        # Separar dados de input e output
-        print("Separando dados de entrada e saída...")
+        print("Separating inputs from outputs data...")
         DATA = self.data_filter(DATA, inp_labels, out_labels)
-        # Para que todos os labels sejam inseridas no dicionário 
-        # para realizar a padronização
-        # _TMP = DATA[0].copy()
-        # _TMP.update(DATA[1])
 
+        # Reducing arrays in memory
         del _DF
         gc.collect()
 
-        # Carregando normalizadores
-        print("Carregando padronizadores...")
+        print("Scalers loading...")
         scaler_dic = self.return_scaler(load_sc=load_sc, 
                                         data_input=DATA)
 
@@ -141,7 +200,7 @@ class TrainingData:
         
         # Cada valor do dicionário scaler_dic referencia seu padronizador
         # utilizando isso para escalonar os dados
-        print("Transformando dados...")
+        print("Scaling the training data")
         for label in scaler_dic.keys():
             if label in DATA[0].keys():
                 # Input data transformation with the scalers in `scalers_dict`
@@ -160,10 +219,10 @@ class TrainingData:
                     with parallel_backend(n_jobs=4, backend='multiprocessing'):
                         DATA[0][label] = scaler_dic[label].transform(DATA[0][label])
 
-                # To check the data transforamtion and magnitude
+                # To check the data transformation and magnitude
                 print(label, np.nanmin(DATA[0][label]), np.nanmax(DATA[0][label]))
 
-            # For the ouputs labels 
+            # For the outputs labels 
             elif label in DATA[1].keys():
 
                 # That are considered the outputs are normalized across the samples too
@@ -172,27 +231,11 @@ class TrainingData:
 
                 # Checking Data dimension
                 print(label, np.nanmin(DATA[1][label]), np.nanmax(DATA[1][label]))
-
-        # Liberando espaço na memória
-        # del _DF, _TMP
-
-        # Data ordering facilitation attribute
-        self.ORDER = []
-
-        # Inputs
-        self.ORDER.append({label: (indx, DATA[0][label].shape[1:])
-                           for indx, label in enumerate(DATA[0].keys())})
-
-        # Outputs
-        self.ORDER.append({label: (indx, DATA[1][label].shape[1:])
-                           for indx, label in enumerate(DATA[1].keys())})
-        print("ORDER Ready!")
         
-        # Separando os dados dos inputs e outputs da rede
-        X = np.concatenate(tuple((data[..., np.newaxis]
-                                  for data in DATA[0].values())), axis=2)
-        Y = np.concatenate(tuple((data[..., np.newaxis]
-                                  for data in DATA[1].values())), axis=2)
+
+        # Setting ORDER inputs and separating inputs from outputs
+        X, Y = self.order_set(DATA)
+
 
         #  Reduce memory consumption
         del DATA
@@ -215,7 +258,7 @@ class TrainingData:
             return X, Y
         
         else:
-            print("Gerando dicionário de treinamento...")
+            print("Generating training dictionary")
             (X_TRAIN, X_TEST, 
              Y_TRAIN, Y_TEST) = train_test_split(X, Y,
                                                  test_size=test_split, 
@@ -225,10 +268,42 @@ class TrainingData:
             print("Shape of Y_TRAIN: ", Y_TRAIN.shape)
             print("Shape of X_TEST: ", X_TEST.shape)
             print("Shape of Y_TEST: ", Y_TEST.shape)
+
+            # Reducing data in memory
             del X,Y
             gc.collect()
 
             return (X_TRAIN, X_TEST, Y_TRAIN, Y_TEST)
+
+    
+    def order_set(self, data_list):
+        """
+            File: auxiliar_functions.py
+            Function Name: order_set
+            Summary: Method to setup the ORDER attribute
+            Description: Function which takes a list (L) containing 
+                        the inputs and outputs (L[0] and L[1], respectively
+                        and transforms the ORDER attribute and creates the 
+                        inputs/outputs dictionary
+                        
+        """
+        # Inputs
+        self.ORDER.append({label: (indx, data_list[0][label].shape[1:])
+                           for indx, label in enumerate(data_list[0].keys())})
+
+        # Outputs
+        self.ORDER.append({label: (indx, data_list[1][label].shape[1:])
+                           for indx, label in enumerate(data_list[1].keys())})
+        print("ORDER Ready!")
+        
+        # Separating input from output data 
+        INPUTS = np.concatenate(tuple((data[..., np.newaxis]
+                                  for data in data_list[0].values())), axis=2)
+        OUTPUTS = np.concatenate(tuple((data[..., np.newaxis]
+                                  for data in data_list[1].values())), axis=2)
+        print('Input and Output separated!')
+
+        return (INPUTS, OUTPUTS)
 
 
     def training_dict(self, DICT, n):
@@ -308,6 +383,7 @@ class TrainingData:
         SCALER_DICT = {}
 
         if load_sc:
+            print("Loading scalers...")
             if data_input:
                 for key in data_input:
                     for label in key:
@@ -317,7 +393,7 @@ class TrainingData:
                     if bool(re.match(f'\w*.joblib$', fn.name)):
                         SCALER_DICT[fn.name.split('.joblib')[0]] = load(f'{fn.path}')
         else:
-            print("Realizando normalização...")
+            print("Creating Scalers...")
             for key in data_input:
                 for label in key:
                     if bool(re.match(f'^Points', label)):
@@ -341,6 +417,30 @@ class TrainingData:
         return SCALER_DICT
 
     
+    def get_paths(self, samples):
+        """
+            File: auxiliar_functions.py
+            Function Name: batch_prediction
+            Summary: Get random filepath in folder
+            Description: Return a randomly selected files in `data_folder`
+                         samples (int) -> number of random samples
+        """
+        # Obtaining all relative path for files in `data_folder`
+        files_paths = [p for p in os.scandir(self.data_folder)]
+        paths = []
+        if samples < self.N_SAMPLES:
+            try:
+                idxs = np.random.choice(range(self.N_SAMPLES+1), size=samples)
+            except:
+                idxs = set(np.random.randint(0, self.N_SAMPLES +1, size=samples))
+            for idx in idxs:
+                paths.append(files_paths[idx])
+            return paths
+        else:
+            print('Samples are greater or equal to files!')
+            return files_paths
+
+            
     def batch_prediction(self, model, INP_LIST, EVAL_ORDER):
         """
             File: auxiliar_functions.py
@@ -581,7 +681,19 @@ class TrainingData:
         return suffix, caso_name, inp_data
 
      
-    def predict_data_generator(self, model, INPUT_DATA, FILENAME, ORIGIN_DATA=None):
+    @timerFunc
+    def prediction(self, model, input_data, **kwargs):
+        """
+            File: auxiliar_functions.py
+            Function Name: prediction
+            Summary: Call .predict 
+            Description: Function developed to decorate with the timer
+        """
+        return model.predict(input_data)
+    
+
+    def predict_data_generator(self, model, INPUT_DATA, FILENAME,
+                                ORIGIN_DATA=None, **kwargs):
         """
             File: auxiliar_functions.py
             Function Name: predict_data_generator
@@ -591,13 +703,15 @@ class TrainingData:
                          INPUT_DATA -> Dicionário com os dados já escalados
                                        para inserir em model.predict
         """
-                                
-        print("Gerando dados para previsão")
+
+        print("==========> Gerando dados para previsão".upper())
         scaler_dict = self.return_scaler(load_sc=True)
         print("Carregado padronizadores!")
 
         # Dados inseridos na predição
-        PREDICs = model.predict(INPUT_DATA)
+        PREDICs = self.prediction(model, INPUT_DATA, **kwargs)
+        # PREDICs = model.predict(INPUT_DATA)
+
 
         # Retornando os dados para a escala original do problema para
         # comparação com os dados de simulação
@@ -612,9 +726,8 @@ class TrainingData:
         #   the outputs to be read by Paraview
 
         # Ordering results array according to the name of the column
+        data_to_concat = []
         if isinstance(PREDICs, list):
-            data_to_concat = []
-
 
             # Changing name back to original naming pattern, to be compatible 
             # with the file in ORIGIN_DATA, assumed with the same pattern as 
@@ -684,7 +797,8 @@ class TrainingData:
         return None
 
     
-    def U_for_OpenFOAM(self, DATA, FILENAME, VECTOR=True, TIME=5573):
+    # To time output genration
+    def U_for_OpenFOAM(self, DATA, FILENAME, VECTOR=True, TIME=5573, **kwargs):
         """
             File: auxiliar_functions.py
             Function Name: U_for_OpenFOAM
@@ -735,12 +849,9 @@ dimensions      $DIMENSIONS;\n\ninternalField   nonuniform $DATA_TYPE
                                      sep=' '))
             print('Writing file...')
             fn.write(s.substitute(FOR_STRING))
-            # fn.write(s.substitute(CLASS=FOR_STRING['CLASS'], TIME=FOR_STRING['TIME'],
-                                   # TYPE=FOR_STRING['TYPE'], DIMENSIONS=FOR_STRING['DIMENSIONS'],
-                                   # DATA_TYPE=FOR_STRING['DATA_TYPE'], DATA=FOR_STRING['DATA'],
-                                   # PAREDE=FOR_STRING['PAREDE'], OVERFLOW=FOR_STRING['OVERFLOW'],
-                                   # UNDERFLOW=FOR_STRING['UNDERFLOW'], ENTRADA=FOR_STRING['ENTRADA']))
+
         return None
+
 
 
     def wall_data(self, XZ_DATA):
@@ -966,6 +1077,83 @@ class NeuralTopology:
         return None
 
 
+
+
+
+# Classe para escrever dados de maneira organizada
+class Writer:
+    '''
+    Classe para escrever dados de maneira organizada
+    '''
+    import os
+
+    def __init__(self, DATA_ARRAY, Case, Props, Dir):
+        self.data = DATA_ARRAY
+        self.dim = self.data.shape
+        self.name = Case
+        self.props = Props
+        self.folder = Dir
+        self.samples = self.dim[0]
+
+    def mk_path(self, dim, name_pattern, folder_name='', ind=''):
+        '''
+        Criação de pastas de forma recursiva
+        '''
+        if len(dim[:-2]) == 1:
+            path = folder_name + f"{name_pattern[0]}/"
+            self.os.makedirs(path)
+            for folder_num in range(dim[:-2][0]):
+                index = [int(p) for p in str(ind+f"{folder_num}").split(',')]
+                index = tuple(index)
+                name = self.props + "_" + str(folder_num)
+                self.record(index, path, name)
+        else:
+            folder_name += f"{name_pattern[0]}_"
+            for num in range(dim[:-2][0]):
+                folder_name += f"{num+1}/"
+                ind += f"{num},"
+                new_dim = dim[1:]
+                new_names = name_pattern[1:]
+                self.mk_path(new_dim, new_names, folder_name, ind)
+                folder_name = folder_name[:-2]
+                ind = ind[:-2]
+
+    def record(self, ind, DIR, NAME):
+        "Function to record the values in array"
+        with open(f'{DIR}/{NAME}', 'w') as datafile:
+            for dataline in self.data[ind]:
+                datafile.write(str(tuple(dataline)))
+        # Inserir local e indices do array
+
+
+class EpochDots(Callback):
+    """A simple callback that prints a "." every epoch, with occasional reports.
+    Args:
+    report_every: How many epochs between full reports
+    dot_every: How many epochs between dots.
+    Originally written in the TensorFlow Docs
+    Can be Found in
+        https://github.com/tensorflow/docs/blob/master/tools/tensorflow_docs/modeling/__init__.py 
+    """
+
+    def __init__(self, report_every=100, dot_every=1):
+        self.report_every = report_every
+        self.dot_every = dot_every
+
+    def on_epoch_end(self, epoch, logs=None):
+        if int(epoch) % self.report_every == 0:
+            print('\nEpoch: {:d}, '.format(epoch), end='')
+            for name, value in sorted(logs.items()):
+                print('{}:{:0.4f}'.format(name, value), end=',  ')
+                print()
+
+        if epoch % self.dot_every == 0:
+            print('.', end='')
+
+
+### FUNCTIONS DEFINITION!
+        
+
 def rec_function(dic, logfile):
     """
     Author: ShogunHirei
@@ -1097,51 +1285,4 @@ def zero_wall_mag(y_pred, y_true, wall_val):
     PNTY = K.mean(K.square(y_pred - tmp_tens), axis=-1)
 
     return K.mean(K.square(y_pred - y_true), axis=-1) + K.abs(M_p - M_t) + PNTY
-
-
-# Classe para escrever dados de maneira organizada
-class Writer:
-    '''
-    Classe para escrever dados de maneira organizada
-    '''
-    import os
-
-    def __init__(self, DATA_ARRAY, Case, Props, Dir):
-        self.data = DATA_ARRAY
-        self.dim = self.data.shape
-        self.name = Case
-        self.props = Props
-        self.folder = Dir
-        self.samples = self.dim[0]
-
-    def mk_path(self, dim, name_pattern, folder_name='', ind=''):
-        '''
-        Criação de pastas de forma recursiva
-        '''
-        if len(dim[:-2]) == 1:
-            path = folder_name + f"{name_pattern[0]}/"
-            self.os.makedirs(path)
-            for folder_num in range(dim[:-2][0]):
-                index = [int(p) for p in str(ind+f"{folder_num}").split(',')]
-                index = tuple(index)
-                name = self.props + "_" + str(folder_num)
-                self.record(index, path, name)
-        else:
-            folder_name += f"{name_pattern[0]}_"
-            for num in range(dim[:-2][0]):
-                folder_name += f"{num+1}/"
-                ind += f"{num},"
-                new_dim = dim[1:]
-                new_names = name_pattern[1:]
-                self.mk_path(new_dim, new_names, folder_name, ind)
-                folder_name = folder_name[:-2]
-                ind = ind[:-2]
-
-    def record(self, ind, DIR, NAME):
-        "Function to record the values in array"
-        with open(f'{DIR}/{NAME}', 'w') as datafile:
-            for dataline in self.data[ind]:
-                datafile.write(str(tuple(dataline)))
-        # Inserir local e indices do array
-
 
